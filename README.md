@@ -1,73 +1,48 @@
-# React + TypeScript + Vite
+# My Money Control v2
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+MVP simples para **registrar receitas e despesas**, com **persistência local (IndexedDB)** e **offline-first** (PWA).
 
-Currently, two official plugins are available:
+## O que já funciona (MVP)
+- **Transações**: criar/editar/excluir (receita/despesa)
+- **Categorias**: lista fixa inicial
+- **Filtros**: mês, tipo e categoria
+- **Resumo mensal**: receitas, despesas e saldo
+- **Offline-first**: dados locais via IndexedDB (Dexie) e app como PWA
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Stack
+- **Frontend**: React + TypeScript + Vite
+- **Estado global**: Zustand (store único)
+- **Banco local**: Dexie (IndexedDB)
+- **PWA**: `vite-plugin-pwa`
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Como rodar
+```bash
+pnpm install
+pnpm dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Build de produção:
+```bash
+pnpm build
+pnpm preview
 ```
+
+## Onde está o código
+- **Tela principal (UI)**: `src/App.tsx`
+- **Store único**: `src/shared/store/index.ts`
+- **Slice de transações**: `src/shared/store/slices/transactions.slice.ts`
+- **Tipos do domínio**: `src/shared/store/types/transactions.ts`
+- **IndexedDB (Dexie)**: `src/shared/lib/db/`
+- **PWA config**: `vite.config.ts` e registro em `src/main.tsx`
+
+## Banco futuro (backend)
+O diretório `docs/database/` contém o material do banco **como referência** para quando entrarmos com backend/sincronização.
+
+## Roadmap (enxuto)
+- **Curto prazo**
+  - categorias customizáveis
+  - export/import (CSV/JSON)
+  - melhorias de UI/UX e validação
+- **Médio prazo (sync opcional)**
+  - backend Node.js + Fastify + Postgres
+  - autenticação e sincronização “eventual” (local-first → sync)
