@@ -1,5 +1,5 @@
 import './App.css'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import {
   currentMonthYYYYMM,
   formatISODateForDisplay,
@@ -27,6 +27,15 @@ function signedFormatCents(cents: number) {
   const sign = cents >= 0 ? '+' : '−'
   return sign + ' ' + formatCents(Math.abs(cents))
 }
+
+function errMessage(e: unknown): string {
+  return e instanceof Error ? e.message : 'Algo deu errado. Tente de novo.'
+}
+
+type ConfirmDialogState =
+  | null
+  | { kind: 'delete-transaction'; transactionId: string }
+  | { kind: 'archive-account'; accountId: string; displayName: string }
 
 function App() {
   const txReady = useStore((s) => s.transactions.ready)
@@ -65,6 +74,60 @@ function App() {
 
   const [editingId, setEditingId] = useState<string | null>(null)
 
+  const [notice, setNotice] = useState<null | { variant: 'error' | 'success'; message: string }>(null)
+  const [submittingTx, setSubmittingTx] = useState(false)
+  const [submittingAccount, setSubmittingAccount] = useState(false)
+  const [submittingAccountEdit, setSubmittingAccountEdit] = useState(false)
+  const [submittingPayInvoice, setSubmittingPayInvoice] = useState(false)
+  const payInvoiceAmountRef = useRef<HTMLInputElement>(null)
+
+  const [payInvoice, setPayInvoice] = useState<null | { cardId: string }>(null)
+  const [payFromId, setPayFromId] = useState('')
+  const [payAmount, setPayAmount] = useState('')
+  const [payDate, setPayDate] = useState(() => todayISODate())
+
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>(null)
+  const confirmTitleId = useId()
+  const confirmDescId = useId()
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null)
+  const confirmCancelRef = useRef<HTMLButtonElement>(null)
+
+  const dismissConfirmDialog = useCallback(() => {
+    const restore = previouslyFocusedRef.current
+    setConfirmDialog(null)
+    queueMicrotask(() => restore?.focus?.())
+  }, [])
+
+  useEffect(() => {
+    if (notice?.variant !== 'success') return
+    const t = window.setTimeout(() => setNotice(null), 3800)
+    return () => window.clearTimeout(t)
+  }, [notice])
+
+  useEffect(() => {
+    if (!payInvoice) return
+    payInvoiceAmountRef.current?.focus()
+  }, [payInvoice])
+
+  useEffect(() => {
+    if (!confirmDialog) return
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        dismissConfirmDialog()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    const id = requestAnimationFrame(() => confirmCancelRef.current?.focus())
+    return () => {
+      document.body.style.overflow = prevOverflow
+      cancelAnimationFrame(id)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [confirmDialog, dismissConfirmDialog])
+
   const editing = useMemo(
     () => rows.find((t) => t.id === editingId) ?? null,
     [editingId, rows],
@@ -85,11 +148,6 @@ function App() {
     category: 'other' as string,
     description: '',
   }))
-
-  const [payInvoice, setPayInvoice] = useState<null | { cardId: string }>(null)
-  const [payFromId, setPayFromId] = useState('')
-  const [payAmount, setPayAmount] = useState('')
-  const [payDate, setPayDate] = useState(() => todayISODate())
 
   const [accountForm, setAccountForm] = useState(() => ({
     name: '',
@@ -201,140 +259,262 @@ function App() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!canSubmit) return
+    if (!canSubmit || submittingTx) return
 
-    if (editing?.kind === 'opening_balance') {
-      const amountCents = Math.round(amountNum * 100)
-      if (amountCents === 0) return
-      await update(editing.id, {
-        amountCents,
-        date: form.date,
-        description: form.description.trim() || undefined,
-      })
-      setEditingId(null)
-      setForm((f) => ({ ...f, amount: '', description: '', date: todayISODate() }))
-      return
-    }
-
-    if (form.type === 'transfer') {
-      const amountCents = Math.round(amountNum * 100)
-      if (amountCents <= 0) return
-      const desc = form.description.trim() || undefined
-      if (editing?.type === 'transfer') {
+    setSubmittingTx(true)
+    setNotice(null)
+    try {
+      if (editing?.kind === 'opening_balance') {
+        const amountCents = Math.round(amountNum * 100)
+        if (amountCents === 0) return
         await update(editing.id, {
-          type: 'transfer',
-          fromAccountId: form.fromAccountId,
-          toAccountId: form.toAccountId,
           amountCents,
           date: form.date,
-          category: 'transfer',
+          description: form.description.trim() || undefined,
+        })
+        setEditingId(null)
+        setForm((f) => ({ ...f, amount: '', description: '', date: todayISODate() }))
+        setNotice({ variant: 'success', message: 'Saldo inicial atualizado.' })
+        return
+      }
+
+      if (form.type === 'transfer') {
+        const amountCents = Math.round(amountNum * 100)
+        if (amountCents <= 0) return
+        const desc = form.description.trim() || undefined
+        if (editing?.type === 'transfer') {
+          await update(editing.id, {
+            type: 'transfer',
+            fromAccountId: form.fromAccountId,
+            toAccountId: form.toAccountId,
+            amountCents,
+            date: form.date,
+            category: 'transfer',
+            description: desc,
+          })
+          setEditingId(null)
+          setNotice({ variant: 'success', message: 'Transferência atualizada.' })
+        } else {
+          await add({
+            type: 'transfer',
+            fromAccountId: form.fromAccountId,
+            toAccountId: form.toAccountId,
+            amountCents,
+            date: form.date,
+            category: 'transfer',
+            description: desc,
+          })
+          setNotice({ variant: 'success', message: 'Transferência registrada.' })
+        }
+        setForm((f) => ({
+          ...f,
+          type: 'expense',
+          fromAccountId: defaultAccountId,
+          toAccountId: '',
+          accountId: f.accountId || defaultAccountId,
+          category: 'other',
+          amount: '',
+          description: '',
+          date: todayISODate(),
+        }))
+        return
+      }
+
+      const amountCents = Math.round(amountNum * 100)
+      if (amountCents <= 0) return
+
+      const accountId = form.accountId || defaultAccountId
+      if (!accountId) {
+        setNotice({ variant: 'error', message: 'Selecione uma conta.' })
+        return
+      }
+
+      const desc = form.description.trim() || undefined
+      if (editing) {
+        await update(editing.id, {
+          type: form.type,
+          accountId,
+          amountCents,
+          date: form.date,
+          category: form.category,
           description: desc,
         })
         setEditingId(null)
+        setNotice({ variant: 'success', message: 'Transação atualizada.' })
       } else {
         await add({
-          type: 'transfer',
-          fromAccountId: form.fromAccountId,
-          toAccountId: form.toAccountId,
+          type: form.type,
+          accountId,
           amountCents,
           date: form.date,
-          category: 'transfer',
+          category: form.category,
           description: desc,
         })
+        setNotice({ variant: 'success', message: 'Transação adicionada.' })
       }
-      setForm((f) => ({
-        ...f,
-        type: 'expense',
-        fromAccountId: defaultAccountId,
-        toAccountId: '',
-        accountId: f.accountId || defaultAccountId,
-        category: 'other',
-        amount: '',
-        description: '',
-        date: todayISODate(),
-      }))
-      return
+
+      setForm((f) => ({ ...f, amount: '', description: '', date: todayISODate() }))
+    } catch (err) {
+      setNotice({ variant: 'error', message: errMessage(err) })
+    } finally {
+      setSubmittingTx(false)
     }
-
-    const amountCents = Math.round(amountNum * 100)
-    if (amountCents <= 0) return
-
-    const accountId = form.accountId || defaultAccountId
-    if (!accountId) return
-
-    const desc = form.description.trim() || undefined
-    if (editing) {
-      await update(editing.id, {
-        type: form.type,
-        accountId,
-        amountCents,
-        date: form.date,
-        category: form.category,
-        description: desc,
-      })
-      setEditingId(null)
-    } else {
-      await add({
-        type: form.type,
-        accountId,
-        amountCents,
-        date: form.date,
-        category: form.category,
-        description: desc,
-      })
-    }
-
-    setForm((f) => ({ ...f, amount: '', description: '', date: todayISODate() }))
   }
 
   async function onSubmitAccount(e: React.FormEvent) {
     e.preventDefault()
-    if (!canSubmitAccount || accountEdit) return
+    if (!canSubmitAccount || accountEdit || submittingAccount) return
 
-    const obRaw = accountForm.openingBalance.trim().replace(',', '.')
-    const openingBalanceCents =
-      obRaw.length > 0 && Number.isFinite(Number(obRaw)) ? Math.round(Number(obRaw) * 100) : undefined
+    setSubmittingAccount(true)
+    setNotice(null)
+    try {
+      const obRaw = accountForm.openingBalance.trim().replace(',', '.')
+      const openingBalanceCents =
+        obRaw.length > 0 && Number.isFinite(Number(obRaw)) ? Math.round(Number(obRaw) * 100) : undefined
 
-    await addAccount({
-      name: accountForm.name.trim(),
-      type: accountForm.type,
-      makeDefault: accountForm.makeDefault,
-      openingBalanceCents,
-    })
+      await addAccount({
+        name: accountForm.name.trim(),
+        type: accountForm.type,
+        makeDefault: accountForm.makeDefault,
+        openingBalanceCents,
+      })
 
-    setAccountForm({ name: '', type: 'bank', openingBalance: '', makeDefault: false })
+      setAccountForm({ name: '', type: 'bank', openingBalance: '', makeDefault: false })
+      setNotice({ variant: 'success', message: 'Conta criada.' })
+    } catch (err) {
+      setNotice({ variant: 'error', message: errMessage(err) })
+    } finally {
+      setSubmittingAccount(false)
+    }
   }
 
   async function beginEditAccount(a: Account) {
-    const snap = await getAccountOpeningForEdit(a.id)
-    setAccountEdit({
-      id: a.id,
-      name: a.name,
-      type: a.type,
-      openingBalance: snap.amountCents != null ? String(snap.amountCents / 100) : '',
-      openingDate: snap.date,
-    })
+    setNotice(null)
+    try {
+      const snap = await getAccountOpeningForEdit(a.id)
+      setAccountEdit({
+        id: a.id,
+        name: a.name,
+        type: a.type,
+        openingBalance: snap.amountCents != null ? String(snap.amountCents / 100) : '',
+        openingDate: snap.date,
+      })
+    } catch (err) {
+      setNotice({ variant: 'error', message: errMessage(err) })
+    }
   }
 
   async function onSubmitAccountEdit(e: React.FormEvent) {
     e.preventDefault()
-    if (!canSubmitAccountEdit || !accountEdit) return
+    if (!canSubmitAccountEdit || !accountEdit || submittingAccountEdit) return
 
-    const raw = accountEdit.openingBalance.trim().replace(',', '.')
-    let openingBalanceCents: number | null = null
-    if (raw.length > 0) {
-      if (!Number.isFinite(Number(raw))) return
-      const cents = Math.round(Number(raw) * 100)
-      openingBalanceCents = cents === 0 ? null : cents
+    setSubmittingAccountEdit(true)
+    setNotice(null)
+    try {
+      const raw = accountEdit.openingBalance.trim().replace(',', '.')
+      let openingBalanceCents: number | null = null
+      if (raw.length > 0) {
+        if (!Number.isFinite(Number(raw))) {
+          setNotice({ variant: 'error', message: 'Saldo inicial inválido.' })
+          return
+        }
+        const cents = Math.round(Number(raw) * 100)
+        openingBalanceCents = cents === 0 ? null : cents
+      }
+
+      await updateAccountDetails(accountEdit.id, {
+        name: accountEdit.name.trim(),
+        type: accountEdit.type,
+        openingBalanceCents,
+        openingDate: accountEdit.openingDate,
+      })
+      setAccountEdit(null)
+      setNotice({ variant: 'success', message: 'Conta atualizada.' })
+    } catch (err) {
+      setNotice({ variant: 'error', message: errMessage(err) })
+    } finally {
+      setSubmittingAccountEdit(false)
     }
+  }
 
-    await updateAccountDetails(accountEdit.id, {
-      name: accountEdit.name.trim(),
-      type: accountEdit.type,
-      openingBalanceCents,
-      openingDate: accountEdit.openingDate,
-    })
-    setAccountEdit(null)
+  function onConfirmDialogKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key !== 'Tab') return
+    const root = e.currentTarget
+    const focusables = [...root.querySelectorAll<HTMLButtonElement>('button:not([disabled])')]
+    if (focusables.length === 0) return
+    const first = focusables[0]
+    const last = focusables[focusables.length - 1]
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
+
+  async function runDeleteTransaction(id: string) {
+    setSubmittingTx(true)
+    setNotice(null)
+    try {
+      await remove(id)
+      if (editingId === id) setEditingId(null)
+      setNotice({ variant: 'success', message: 'Transação excluída.' })
+    } catch (err) {
+      setNotice({ variant: 'error', message: errMessage(err) })
+    } finally {
+      setSubmittingTx(false)
+    }
+  }
+
+  function requestDeleteTransaction(id: string) {
+    previouslyFocusedRef.current = document.activeElement as HTMLElement | null
+    setConfirmDialog({ kind: 'delete-transaction', transactionId: id })
+  }
+
+  async function runArchiveAccountAction(id: string) {
+    setNotice(null)
+    try {
+      await archiveAccount(id)
+      setNotice({ variant: 'success', message: 'Conta arquivada.' })
+    } catch (err) {
+      setNotice({ variant: 'error', message: errMessage(err) })
+    }
+  }
+
+  function requestArchiveAccount(id: string, displayName: string) {
+    previouslyFocusedRef.current = document.activeElement as HTMLElement | null
+    setConfirmDialog({ kind: 'archive-account', accountId: id, displayName })
+  }
+
+  async function handleConfirmDialogPrimary() {
+    if (!confirmDialog) return
+    const state = confirmDialog
+    const restore = previouslyFocusedRef.current
+    setConfirmDialog(null)
+    queueMicrotask(() => restore?.focus?.())
+    if (state.kind === 'delete-transaction') await runDeleteTransaction(state.transactionId)
+    else await runArchiveAccountAction(state.accountId)
+  }
+
+  async function handleSetDefaultAccount(id: string) {
+    setNotice(null)
+    try {
+      await setDefaultAccount(id)
+      setNotice({ variant: 'success', message: 'Conta padrão atualizada.' })
+    } catch (err) {
+      setNotice({ variant: 'error', message: errMessage(err) })
+    }
+  }
+
+  async function handleUnarchiveAccount(id: string) {
+    setNotice(null)
+    try {
+      await unarchiveAccount(id)
+      setNotice({ variant: 'success', message: 'Conta restaurada.' })
+    } catch (err) {
+      setNotice({ variant: 'error', message: errMessage(err) })
+    }
   }
 
   function accountName(id: string) {
@@ -348,6 +528,7 @@ function App() {
   const canSubmitPayInvoice =
     payInvoice != null &&
     payFromId.length > 0 &&
+    payFromId !== payInvoice.cardId &&
     payAmount.trim().length > 0 &&
     Number.isFinite(payNum) &&
     Math.round(payNum * 100) > 0
@@ -366,20 +547,35 @@ function App() {
 
   async function onSubmitPayInvoice(e: React.FormEvent) {
     e.preventDefault()
-    if (!canSubmitPayInvoice || !payInvoice) return
+    if (!canSubmitPayInvoice || !payInvoice || submittingPayInvoice) return
+
     const amountCents = Math.round(payNum * 100)
     const nm = accountName(payInvoice.cardId)
     const label = formatMonthYearForDisplay(currentMonthYYYYMM())
-    await add({
-      type: 'transfer',
-      fromAccountId: payFromId,
-      toAccountId: payInvoice.cardId,
-      amountCents,
-      date: payDate,
-      category: 'transfer',
-      description: `Pagamento fatura — ${nm} (${label})`,
-    })
-    setPayInvoice(null)
+
+    setSubmittingPayInvoice(true)
+    setNotice(null)
+    try {
+      if (payFromId === payInvoice.cardId) {
+        setNotice({ variant: 'error', message: 'Escolha outra conta para debitar o pagamento.' })
+        return
+      }
+      await add({
+        type: 'transfer',
+        fromAccountId: payFromId,
+        toAccountId: payInvoice.cardId,
+        amountCents,
+        date: payDate,
+        category: 'transfer',
+        description: `Pagamento fatura — ${nm} (${label})`,
+      })
+      setPayInvoice(null)
+      setNotice({ variant: 'success', message: 'Pagamento de fatura registrado.' })
+    } catch (err) {
+      setNotice({ variant: 'error', message: errMessage(err) })
+    } finally {
+      setSubmittingPayInvoice(false)
+    }
   }
 
   const faturaMesLabel = formatMonthYearForDisplay(currentMonthYYYYMM())
@@ -393,6 +589,24 @@ function App() {
         </div>
         <div className="pill">{ready ? 'Pronto' : 'Carregando...'}</div>
       </header>
+
+      {notice ? (
+        <div
+          className={`notice notice-${notice.variant}`}
+          role={notice.variant === 'error' ? 'alert' : 'status'}
+          aria-live="polite"
+        >
+          <span className="notice-text">{notice.message}</span>
+          <button
+            type="button"
+            className="notice-dismiss"
+            onClick={() => setNotice(null)}
+            aria-label="Fechar aviso"
+          >
+            ×
+          </button>
+        </div>
+      ) : null}
 
       <section className="grid">
         <div className="card">
@@ -528,8 +742,8 @@ function App() {
                 <span>Definir como conta padrão</span>
               </label>
               <div className="actions">
-                <button type="submit" disabled={!canSubmitAccount}>
-                  Adicionar conta
+                <button type="submit" disabled={!canSubmitAccount || submittingAccount}>
+                  {submittingAccount ? 'Salvando…' : 'Adicionar conta'}
                 </button>
               </div>
             </form>
@@ -588,14 +802,17 @@ function App() {
                 <button type="button" className="ghost" onClick={() => setAccountEdit(null)}>
                   Cancelar
                 </button>
-                <button type="submit" disabled={!canSubmitAccountEdit}>
-                  Salvar
+                <button type="submit" disabled={!canSubmitAccountEdit || submittingAccountEdit}>
+                  {submittingAccountEdit ? 'Salvando…' : 'Salvar'}
                 </button>
               </div>
             </form>
           ) : null}
           {accounts.length === 0 ? (
-            <p className="muted">Nenhuma conta.</p>
+            <p className="muted">
+              Nenhuma conta ainda. Cadastre uma acima (banco, carteira ou cartão) para começar a lançar
+              transações.
+            </p>
           ) : (
             <ul className="list accounts-list">
               {accounts.map((a: Account) => (
@@ -636,6 +853,7 @@ function App() {
                             <label>
                               <span>Valor (R$)</span>
                               <input
+                                ref={payInvoiceAmountRef}
                                 inputMode="decimal"
                                 value={payAmount}
                                 onChange={(e) => setPayAmount(e.target.value.replace(',', '.'))}
@@ -653,8 +871,8 @@ function App() {
                               <button type="button" className="ghost" onClick={() => setPayInvoice(null)}>
                                 Cancelar
                               </button>
-                              <button type="submit" disabled={!canSubmitPayInvoice}>
-                                Registrar pagamento
+                              <button type="submit" disabled={!canSubmitPayInvoice || submittingPayInvoice}>
+                                {submittingPayInvoice ? 'Registrando…' : 'Registrar pagamento'}
                               </button>
                             </div>
                           </form>
@@ -691,7 +909,11 @@ function App() {
                       Editar
                     </button>
                     {!a.isDefault ? (
-                      <button type="button" className="ghost" onClick={() => void setDefaultAccount(a.id)}>
+                      <button
+                        type="button"
+                        className="ghost"
+                        onClick={() => void handleSetDefaultAccount(a.id)}
+                      >
                         Padrão
                       </button>
                     ) : null}
@@ -699,7 +921,7 @@ function App() {
                       type="button"
                       className="danger"
                       disabled={accounts.length <= 1}
-                      onClick={() => void archiveAccount(a.id)}
+                      onClick={() => void requestArchiveAccount(a.id, a.name)}
                     >
                       Arquivar
                     </button>
@@ -754,7 +976,11 @@ function App() {
                       >
                         Editar
                       </button>
-                      <button type="button" className="ghost" onClick={() => void unarchiveAccount(a.id)}>
+                      <button
+                        type="button"
+                        className="ghost"
+                        onClick={() => void handleUnarchiveAccount(a.id)}
+                      >
                         Restaurar
                       </button>
                     </div>
@@ -908,13 +1134,13 @@ function App() {
                   <button type="button" className="ghost" onClick={() => setEditingId(null)}>
                     Cancelar
                   </button>
-                  <button type="submit" disabled={!canSubmit}>
-                    Salvar
+                  <button type="submit" disabled={!canSubmit || submittingTx}>
+                    {submittingTx ? 'Salvando…' : 'Salvar'}
                   </button>
                 </>
               ) : (
-                <button type="submit" disabled={!canSubmit}>
-                  Adicionar
+                <button type="submit" disabled={!canSubmit || submittingTx}>
+                  {submittingTx ? 'Salvando…' : 'Adicionar'}
                 </button>
               )}
             </div>
@@ -926,7 +1152,10 @@ function App() {
         <div className="card">
           <h2>Transações</h2>
           {rows.length === 0 ? (
-            <p className="muted">Sem transações para este filtro.</p>
+            <p className="muted">
+              Nenhuma transação com os filtros atuais. Ajuste mês, conta ou tipo — ou cadastre uma nova
+              transação ao lado.
+            </p>
           ) : (
             <ul className="list">
               {rows.map((t) => (
@@ -966,7 +1195,11 @@ function App() {
                     <button type="button" className="ghost" onClick={() => setEditingId(t.id)}>
                       Editar
                     </button>
-                    <button type="button" className="danger" onClick={() => void remove(t.id)}>
+                    <button
+                      type="button"
+                      className="danger"
+                      onClick={() => void requestDeleteTransaction(t.id)}
+                    >
                       Excluir
                     </button>
                   </div>
@@ -976,6 +1209,48 @@ function App() {
           )}
         </div>
       </section>
+
+      {confirmDialog ? (
+        <div
+          className="modal-root"
+          role="presentation"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) dismissConfirmDialog()
+          }}
+        >
+          <div
+            className="modal-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={confirmTitleId}
+            aria-describedby={confirmDescId}
+            onKeyDown={onConfirmDialogKeyDown}
+          >
+            <h2 id={confirmTitleId} className="modal-title">
+              {confirmDialog.kind === 'delete-transaction'
+                ? 'Excluir transação?'
+                : 'Arquivar conta?'}
+            </h2>
+            <p id={confirmDescId} className="modal-desc">
+              {confirmDialog.kind === 'delete-transaction'
+                ? 'Esta ação não pode ser desfeita. A transação será removida permanentemente.'
+                : `Arquivar a conta “${confirmDialog.displayName}”? Você pode restaurá-la depois em contas arquivadas.`}
+            </p>
+            <div className="modal-actions">
+              <button ref={confirmCancelRef} type="button" className="ghost" onClick={dismissConfirmDialog}>
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className={confirmDialog.kind === 'delete-transaction' ? 'danger' : undefined}
+                onClick={() => void handleConfirmDialogPrimary()}
+              >
+                {confirmDialog.kind === 'delete-transaction' ? 'Excluir' : 'Arquivar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
