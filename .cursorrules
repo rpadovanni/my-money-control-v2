@@ -1,0 +1,81 @@
+# Regras de Arquitetura - My Money Control v2
+
+## Princípios Fundamentais
+
+**Objetivo**: Simplicidade, clareza, escalabilidade sem over-engineering.
+
+## Regras de Ouro
+
+1. ✅ **Store Global Único**: Toda lógica de estado global fica em `src/shared/store`
+2. ✅ **Slices Independentes**: Slices não se importam entre si; apenas a UI consome o store
+3. ✅ **Tipagem Centralizada**: Toda tipagem de domínios fica em `src/shared/store/types`
+4. ✅ **Sem Contexts de Estado**: Nenhum domínio possui contexto próprio ou store separado
+5. ✅ **UI via Hooks**: A UI só acessa estado via hooks do store (`useStore`)
+6. ✅ **Sem Over-Engineering**: Nada de padrões enterprise, DDD complexo ou sobre-modularização
+7. ✅ **Prioridade**: Velocidade, organização e manutenibilidade
+
+## Mapa de Dependências
+
+```
+(Global Store)
+ |
+ ├── user.slice ← usado por: layout, header, profile-page
+ |
+ ├── settings.slice ← usado por: theme-provider, currency formatter
+ |
+ ├── planning.slice ← usado por: planning-page, charts, budget-calc
+ |
+ ├── transactions.slice ← usado por: dashboard, statements, summaries
+ |
+ └── investments.slice ← usado por: portfolio-page, charts, api-sync
+```
+
+## Tarefas Automáticas
+
+Ao criar ou refatorar código:
+
+1. **Refatorar automaticamente** qualquer arquivo para seguir essas regras
+2. **Criar novos slices** conforme necessidade seguindo o blueprint em `docs/architecture.md` (quando existir)
+3. **Nunca criar** sistemas de diretórios complexos
+4. **Centralizar tipos** em `src/shared/store/types`
+5. **Manter slices independentes** (sem imports entre slices)
+
+## Padrão de Slice
+
+```typescript
+import type { StateCreator } from 'zustand';
+import type { MyType } from '../types/my-type';
+
+export interface MySlice {
+ myData: MyType;
+ updateMyData: (data: Partial<MyType>) => void;
+}
+
+export const createMySlice: StateCreator<MySlice> = (set) => ({
+ myData: initialValue,
+ updateMyData: (data) => set((s) => ({ myData: { ...s.myData, ...data } })),
+});
+```
+
+## Uso do Store
+
+```typescript
+import { useStore } from '@/shared/store';
+
+// Ler estado
+const theme = useStore((state) => state.settings.theme);
+
+// Atualizar estado
+const updateSettings = useStore((state) => state.updateSettings);
+updateSettings({ theme: 'dark' });
+```
+
+## O Que NÃO Fazer
+
+- ❌ Criar contexts React para estado global
+- ❌ Criar stores separados por feature
+- ❌ Fazer slices importarem outros slices
+- ❌ Usar padrões enterprise complexos
+- ❌ Criar sistemas de diretórios complexos
+- ❌ Duplicar lógica de estado
+
