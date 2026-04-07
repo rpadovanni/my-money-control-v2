@@ -24,4 +24,5 @@ Este arquivo existe para manter o projeto consistente quando você (ou um agente
 - Valores monetários: sempre em **centavos** no domínio (`amountCents`)
 - Datas: `YYYY-MM-DD` no domínio
 - Filtros: `YYYY-MM` (mês) para queries
+- **Commits**: mensagens (assunto e corpo) sempre em **inglês** (ex.: Conventional Commits)
 
