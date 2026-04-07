@@ -1,6 +1,7 @@
 import { monthDayBounds, nowTimestampISO } from '../dates'
-import { transactionNetCents } from '../transaction-net'
+import { applyTransactionToBalanceMap } from '../transaction-net'
 import { db } from './dexie'
+import type { Account } from '../../store/types/accounts'
 import type {
   NewTransactionInput,
   Transaction,
@@ -14,13 +15,23 @@ export class TransactionsRepository {
 
     let coll = db.transactions.where('date').between(startISO, endISO, true, true)
     if (filters.type !== 'all') {
-      coll = coll.and((t) => t.kind === 'normal' && t.type === filters.type)
+      if (filters.type === 'transfer') {
+        coll = coll.and((t) => t.type === 'transfer')
+      } else {
+        coll = coll.and((t) => t.kind === 'normal' && t.type === filters.type)
+      }
     }
     if (filters.category) {
       coll = coll.and((t) => t.category === filters.category)
     }
     if (filters.accountId !== 'all') {
-      coll = coll.and((t) => t.accountId === filters.accountId)
+      const id = filters.accountId
+      coll = coll.and((t) => {
+        if (t.type === 'transfer') {
+          return t.fromAccountId === id || t.toAccountId === id
+        }
+        return t.accountId === id
+      })
     }
 
     const items = await coll.toArray()
@@ -31,6 +42,34 @@ export class TransactionsRepository {
   async add(input: NewTransactionInput): Promise<Transaction> {
     const ts = nowTimestampISO()
     const kind = input.kind ?? 'normal'
+
+    if (input.type === 'transfer') {
+      const from = input.fromAccountId
+      const to = input.toAccountId
+      if (!from || !to) throw new Error('Transferência exige conta de origem e destino')
+      if (from === to) throw new Error('Origem e destino devem ser diferentes')
+      if (input.amountCents <= 0) throw new Error('Valor da transferência deve ser maior que zero')
+
+      const tx: Transaction = {
+        id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`,
+        type: 'transfer',
+        kind: 'normal',
+        accountId: from,
+        fromAccountId: from,
+        toAccountId: to,
+        amountCents: input.amountCents,
+        date: input.date,
+        category: 'transfer',
+        description: input.description,
+        createdAt: ts,
+        updatedAt: ts,
+      }
+      await db.transactions.add(tx)
+      return tx
+    }
+
+    if (!input.accountId) throw new Error('Conta obrigatória')
+
     if (kind === 'normal' && input.amountCents <= 0) {
       throw new Error('Valor da transação deve ser maior que zero')
     }
@@ -63,6 +102,19 @@ export class TransactionsRepository {
       ...patch,
       updatedAt: nowTimestampISO(),
     }
+
+    if (next.type === 'transfer') {
+      const from = next.fromAccountId ?? existing.fromAccountId
+      const to = next.toAccountId ?? existing.toAccountId
+      if (!from || !to || from === to) {
+        throw new Error('Transferência inválida: origem e destino obrigatórios e distintos')
+      }
+      next.fromAccountId = from
+      next.toAccountId = to
+      next.accountId = from
+      if (!next.category) next.category = 'transfer'
+    }
+
     await db.transactions.put(next)
     return next
   }
@@ -71,7 +123,6 @@ export class TransactionsRepository {
     await db.transactions.delete(id)
   }
 
-  /** Primeiro saldo inicial da conta (por `createdAt`), se houver vários. */
   async getOpeningBalanceForAccount(accountId: string): Promise<Transaction | null> {
     const rows = await db.transactions
       .filter((t) => t.accountId === accountId && t.kind === 'opening_balance')
@@ -81,7 +132,6 @@ export class TransactionsRepository {
     return rows[0] ?? null
   }
 
-  /** Remove todos os saldos iniciais da conta e, se `amountCents` for não nulo e ≠ 0, cria um novo. */
   async setOpeningBalanceForAccount(accountId: string, amountCents: number | null, date: string): Promise<void> {
     const rows = await db.transactions
       .filter((t) => t.accountId === accountId && t.kind === 'opening_balance')
@@ -100,13 +150,44 @@ export class TransactionsRepository {
     }
   }
 
-  /** Saldo acumulado por conta (todas as transações). */
   async getBalancesCentsByAccountId(): Promise<Record<string, number>> {
     const all = await db.transactions.toArray()
     const out: Record<string, number> = {}
     for (const t of all) {
-      const id = t.accountId
-      out[id] = (out[id] ?? 0) + transactionNetCents(t)
+      applyTransactionToBalanceMap(t, out)
+    }
+    return out
+  }
+
+  /**
+   * “A pagar” no mês civil `monthYYYYMM`: despesas no cartão − transferências recebidas no cartão no mesmo mês.
+   */
+  async getCreditCardPayablesForMonth(monthYYYYMM: string): Promise<Record<string, number>> {
+    const { startISO, endISO } = monthDayBounds(monthYYYYMM)
+    const [rows, accounts] = await Promise.all([
+      db.transactions.where('date').between(startISO, endISO, true, true).toArray(),
+      db.accounts.toArray() as Promise<Account[]>,
+    ])
+    const creditIds = new Set(accounts.filter((a) => a.type === 'credit_card').map((a) => a.id))
+    if (creditIds.size === 0) return {}
+
+    const expensesByCard: Record<string, number> = {}
+    const paymentsByCard: Record<string, number> = {}
+
+    for (const t of rows) {
+      if (t.type === 'expense' && t.kind === 'normal' && creditIds.has(t.accountId)) {
+        expensesByCard[t.accountId] = (expensesByCard[t.accountId] ?? 0) + t.amountCents
+      }
+      if (t.type === 'transfer' && t.toAccountId && creditIds.has(t.toAccountId)) {
+        paymentsByCard[t.toAccountId] = (paymentsByCard[t.toAccountId] ?? 0) + t.amountCents
+      }
+    }
+
+    const out: Record<string, number> = {}
+    for (const id of creditIds) {
+      const e = expensesByCard[id] ?? 0
+      const p = paymentsByCard[id] ?? 0
+      out[id] = Math.max(0, e - p)
     }
     return out
   }

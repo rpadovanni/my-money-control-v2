@@ -6,7 +6,7 @@ import {
   formatMonthYearForDisplay,
   todayISODate,
 } from './shared/lib/dates'
-import { transactionNetCents } from './shared/lib/transaction-net'
+import { summaryPeriodDelta } from './shared/lib/transaction-net'
 import { useStore } from './shared/store'
 import type { Account, AccountType } from './shared/store/types/accounts'
 import type { TransactionType } from './shared/store/types/transactions'
@@ -14,6 +14,7 @@ import type { TransactionType } from './shared/store/types/transactions'
 const ACCOUNT_TYPE_LABEL: Record<AccountType, string> = {
   bank: 'Banco',
   wallet: 'Carteira',
+  credit_card: 'Cartão de crédito',
   other: 'Outro',
 }
 
@@ -42,6 +43,7 @@ function App() {
   const accounts = useStore((s) => s.accounts.items)
   const archivedAccounts = useStore((s) => s.accounts.archivedItems)
   const balancesByAccountId = useStore((s) => s.accounts.balancesByAccountId)
+  const creditCardPayableByAccountId = useStore((s) => s.accounts.creditCardPayableByAccountId)
 
   const initTx = useStore((s) => s.transactionsInit)
   const initAcc = useStore((s) => s.accountsInit)
@@ -76,11 +78,18 @@ function App() {
   const [form, setForm] = useState(() => ({
     type: 'expense' as TransactionType,
     accountId: '',
+    fromAccountId: '',
+    toAccountId: '',
     amount: '',
     date: todayISODate(),
     category: 'other' as string,
     description: '',
   }))
+
+  const [payInvoice, setPayInvoice] = useState<null | { cardId: string }>(null)
+  const [payFromId, setPayFromId] = useState('')
+  const [payAmount, setPayAmount] = useState('')
+  const [payDate, setPayDate] = useState(() => todayISODate())
 
   const [accountForm, setAccountForm] = useState(() => ({
     name: '',
@@ -115,6 +124,8 @@ function App() {
       setForm({
         type: 'income',
         accountId: editing.accountId,
+        fromAccountId: '',
+        toAccountId: '',
         amount: String(editing.amountCents / 100),
         date: editing.date,
         category: editing.category,
@@ -122,9 +133,24 @@ function App() {
       })
       return
     }
+    if (editing.type === 'transfer') {
+      setForm({
+        type: 'transfer',
+        accountId: '',
+        fromAccountId: editing.fromAccountId ?? '',
+        toAccountId: editing.toAccountId ?? '',
+        amount: String(editing.amountCents / 100),
+        date: editing.date,
+        category: 'transfer',
+        description: editing.description ?? '',
+      })
+      return
+    }
     setForm({
       type: editing.type,
       accountId: editing.accountId,
+      fromAccountId: '',
+      toAccountId: '',
       amount: String(editing.amountCents / 100),
       date: editing.date,
       category: editing.category,
@@ -132,20 +158,37 @@ function App() {
     })
   }, [editing])
 
+  const summaryAccountKey = accountFilter === 'all' ? 'all' : accountFilter
+
   const summary = useMemo(() => {
     let income = 0
     let expense = 0
     let period = 0
     for (const t of rows) {
-      period += transactionNetCents(t)
+      period += summaryPeriodDelta(t, summaryAccountKey)
       if (t.kind !== 'normal') continue
+      if (t.type === 'transfer') continue
       if (t.type === 'income') income += t.amountCents
       else expense += t.amountCents
     }
     return { income, expense, flow: income - expense, period }
-  }, [rows])
+  }, [rows, summaryAccountKey])
 
-  const canSubmit = form.amount.trim().length > 0 && Number.isFinite(Number(form.amount))
+  const amountRaw = form.amount.trim().replace(',', '.')
+  const amountNum = amountRaw.length > 0 ? Number(amountRaw) : Number.NaN
+  const amountOk = form.amount.trim().length > 0 && Number.isFinite(amountNum)
+
+  const canSubmit =
+    editing?.kind === 'opening_balance'
+      ? amountOk && amountNum !== 0
+      : form.type === 'transfer'
+        ? amountOk &&
+          amountNum > 0 &&
+          Boolean(form.fromAccountId) &&
+          Boolean(form.toAccountId) &&
+          form.fromAccountId !== form.toAccountId
+        : amountOk && amountNum > 0
+
   const canSubmitAccount = accountForm.name.trim().length > 0 && accountEdit == null
 
   const accountEditOpeningRaw = accountEdit?.openingBalance.trim().replace(',', '.') ?? ''
@@ -161,7 +204,7 @@ function App() {
     if (!canSubmit) return
 
     if (editing?.kind === 'opening_balance') {
-      const amountCents = Math.round(Number(form.amount) * 100)
+      const amountCents = Math.round(amountNum * 100)
       if (amountCents === 0) return
       await update(editing.id, {
         amountCents,
@@ -173,12 +216,53 @@ function App() {
       return
     }
 
-    const amountCents = Math.round(Number(form.amount) * 100)
+    if (form.type === 'transfer') {
+      const amountCents = Math.round(amountNum * 100)
+      if (amountCents <= 0) return
+      const desc = form.description.trim() || undefined
+      if (editing?.type === 'transfer') {
+        await update(editing.id, {
+          type: 'transfer',
+          fromAccountId: form.fromAccountId,
+          toAccountId: form.toAccountId,
+          amountCents,
+          date: form.date,
+          category: 'transfer',
+          description: desc,
+        })
+        setEditingId(null)
+      } else {
+        await add({
+          type: 'transfer',
+          fromAccountId: form.fromAccountId,
+          toAccountId: form.toAccountId,
+          amountCents,
+          date: form.date,
+          category: 'transfer',
+          description: desc,
+        })
+      }
+      setForm((f) => ({
+        ...f,
+        type: 'expense',
+        fromAccountId: defaultAccountId,
+        toAccountId: '',
+        accountId: f.accountId || defaultAccountId,
+        category: 'other',
+        amount: '',
+        description: '',
+        date: todayISODate(),
+      }))
+      return
+    }
+
+    const amountCents = Math.round(amountNum * 100)
     if (amountCents <= 0) return
 
     const accountId = form.accountId || defaultAccountId
     if (!accountId) return
 
+    const desc = form.description.trim() || undefined
     if (editing) {
       await update(editing.id, {
         type: form.type,
@@ -186,7 +270,7 @@ function App() {
         amountCents,
         date: form.date,
         category: form.category,
-        description: form.description.trim() || undefined,
+        description: desc,
       })
       setEditingId(null)
     } else {
@@ -196,7 +280,7 @@ function App() {
         amountCents,
         date: form.date,
         category: form.category,
-        description: form.description.trim() || undefined,
+        description: desc,
       })
     }
 
@@ -259,6 +343,47 @@ function App() {
     )
   }
 
+  const payRaw = payAmount.trim().replace(',', '.')
+  const payNum = payRaw.length > 0 ? Number(payRaw) : Number.NaN
+  const canSubmitPayInvoice =
+    payInvoice != null &&
+    payFromId.length > 0 &&
+    payAmount.trim().length > 0 &&
+    Number.isFinite(payNum) &&
+    Math.round(payNum * 100) > 0
+
+  function openPayInvoice(cardId: string) {
+    setPayInvoice({ cardId })
+    const suggested = creditCardPayableByAccountId[cardId] ?? 0
+    setPayAmount(suggested > 0 ? String(suggested / 100) : '')
+    setPayDate(todayISODate())
+    const from =
+      accounts.find((a) => a.isDefault && a.id !== cardId && a.type !== 'credit_card')?.id ??
+      accounts.find((a) => a.id !== cardId && a.type !== 'credit_card')?.id ??
+      defaultAccountId
+    setPayFromId(from)
+  }
+
+  async function onSubmitPayInvoice(e: React.FormEvent) {
+    e.preventDefault()
+    if (!canSubmitPayInvoice || !payInvoice) return
+    const amountCents = Math.round(payNum * 100)
+    const nm = accountName(payInvoice.cardId)
+    const label = formatMonthYearForDisplay(currentMonthYYYYMM())
+    await add({
+      type: 'transfer',
+      fromAccountId: payFromId,
+      toAccountId: payInvoice.cardId,
+      amountCents,
+      date: payDate,
+      category: 'transfer',
+      description: `Pagamento fatura — ${nm} (${label})`,
+    })
+    setPayInvoice(null)
+  }
+
+  const faturaMesLabel = formatMonthYearForDisplay(currentMonthYYYYMM())
+
   return (
     <div className="container">
       <header className="header">
@@ -304,6 +429,7 @@ function App() {
                 <option value="all">Todos</option>
                 <option value="income">Receita</option>
                 <option value="expense">Despesa</option>
+                <option value="transfer">Transferência</option>
               </select>
             </label>
 
@@ -340,7 +466,7 @@ function App() {
               <div className={summary.flow >= 0 ? 'value positive' : 'value negative'}>
                 {formatCents(summary.flow)}
               </div>
-              <div className="hint">Receitas − despesas (sem saldo inicial)</div>
+              <div className="hint">Receitas − despesas (sem saldo inicial nem transferências)</div>
             </div>
             <div>
               <div className="muted">Saldo no período</div>
@@ -356,7 +482,10 @@ function App() {
       <section className="grid">
         <div className="card">
           <h2>Contas</h2>
-          <p className="hint accounts-hint">Saldo por conta = todo o histórico de movimentos (não só o mês filtrado).</p>
+          <p className="hint accounts-hint">
+            Saldo por conta = histórico completo. Em cartões, &quot;A pagar&quot; usa sempre o{' '}
+            <strong>mês civil atual</strong> (independente do filtro da lista).
+          </p>
           <div className={accountEdit ? 'account-form-wrap is-disabled' : 'account-form-wrap'}>
             <form className="form account-form" onSubmit={onSubmitAccount}>
               <label className="full">
@@ -375,6 +504,7 @@ function App() {
                 >
                   <option value="bank">Banco</option>
                   <option value="wallet">Carteira</option>
+                  <option value="credit_card">Cartão de crédito</option>
                   <option value="other">Outro</option>
                 </select>
               </label>
@@ -429,6 +559,7 @@ function App() {
                 >
                   <option value="bank">Banco</option>
                   <option value="wallet">Carteira</option>
+                  <option value="credit_card">Cartão de crédito</option>
                   <option value="other">Outro</option>
                 </select>
               </label>
@@ -475,13 +606,79 @@ function App() {
                       <span className="muted">{ACCOUNT_TYPE_LABEL[a.type]}</span>
                     </div>
                     {a.isDefault ? <div className="tag">Padrão</div> : null}
-                    <div
-                      className={
-                        (balancesByAccountId[a.id] ?? 0) >= 0 ? 'account-balance positive' : 'account-balance negative'
-                      }
-                    >
-                      Saldo: {formatCents(balancesByAccountId[a.id] ?? 0)}
-                    </div>
+                    {a.type === 'credit_card' ? (
+                      <>
+                        <div className="account-fatura-label muted">Fatura ({faturaMesLabel})</div>
+                        <div className="account-payable-amount">
+                          A pagar: {formatCents(creditCardPayableByAccountId[a.id] ?? 0)}
+                        </div>
+                        <div className="account-balance account-balance--subtle muted">
+                          Saldo (contábil): {formatCents(balancesByAccountId[a.id] ?? 0)}
+                        </div>
+                        {payInvoice?.cardId === a.id ? (
+                          <form className="pay-invoice-form" onSubmit={onSubmitPayInvoice}>
+                            <label>
+                              <span>Pagar de</span>
+                              <select
+                                value={payFromId}
+                                onChange={(e) => setPayFromId(e.target.value)}
+                              >
+                                {(accounts.filter((x) => x.id !== a.id && x.type !== 'credit_card').length > 0
+                                  ? accounts.filter((x) => x.id !== a.id && x.type !== 'credit_card')
+                                  : accounts.filter((x) => x.id !== a.id)
+                                ).map((x) => (
+                                  <option key={x.id} value={x.id}>
+                                    {x.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label>
+                              <span>Valor (R$)</span>
+                              <input
+                                inputMode="decimal"
+                                value={payAmount}
+                                onChange={(e) => setPayAmount(e.target.value.replace(',', '.'))}
+                              />
+                            </label>
+                            <label>
+                              <span>Data</span>
+                              <input
+                                type="date"
+                                value={payDate}
+                                onChange={(e) => setPayDate(e.target.value)}
+                              />
+                            </label>
+                            <div className="pay-invoice-actions">
+                              <button type="button" className="ghost" onClick={() => setPayInvoice(null)}>
+                                Cancelar
+                              </button>
+                              <button type="submit" disabled={!canSubmitPayInvoice}>
+                                Registrar pagamento
+                              </button>
+                            </div>
+                          </form>
+                        ) : (
+                          <button
+                            type="button"
+                            className="ghost pay-invoice-open"
+                            onClick={() => openPayInvoice(a.id)}
+                          >
+                            Pagar fatura
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      <div
+                        className={
+                          (balancesByAccountId[a.id] ?? 0) >= 0
+                            ? 'account-balance positive'
+                            : 'account-balance negative'
+                        }
+                      >
+                        Saldo: {formatCents(balancesByAccountId[a.id] ?? 0)}
+                      </div>
+                    )}
                   </div>
                   <div className="itemActions">
                     <button
@@ -525,15 +722,27 @@ function App() {
                         <strong>{a.name}</strong>
                         <span className="muted">{ACCOUNT_TYPE_LABEL[a.type]}</span>
                       </div>
-                      <div
-                        className={
-                          (balancesByAccountId[a.id] ?? 0) >= 0
-                            ? 'account-balance account-balance--compact positive'
-                            : 'account-balance account-balance--compact negative'
-                        }
-                      >
-                        Saldo: {formatCents(balancesByAccountId[a.id] ?? 0)}
-                      </div>
+                      {a.type === 'credit_card' ? (
+                        <>
+                          <div className="account-fatura-label muted">Fatura ({faturaMesLabel})</div>
+                          <div className="account-payable-amount account-balance--compact">
+                            A pagar: {formatCents(creditCardPayableByAccountId[a.id] ?? 0)}
+                          </div>
+                          <div className="account-balance account-balance--subtle muted account-balance--compact">
+                            Saldo (contábil): {formatCents(balancesByAccountId[a.id] ?? 0)}
+                          </div>
+                        </>
+                      ) : (
+                        <div
+                          className={
+                            (balancesByAccountId[a.id] ?? 0) >= 0
+                              ? 'account-balance account-balance--compact positive'
+                              : 'account-balance account-balance--compact negative'
+                          }
+                        >
+                          Saldo: {formatCents(balancesByAccountId[a.id] ?? 0)}
+                        </div>
+                      )}
                     </div>
                     <div className="itemActions">
                       <button
@@ -557,17 +766,38 @@ function App() {
         </div>
 
         <div className="card">
-          <h2>{editing ? (editing.kind === 'opening_balance' ? 'Saldo inicial' : 'Editar transação') : 'Nova transação'}</h2>
+          <h2>
+            {editing
+              ? editing.kind === 'opening_balance'
+                ? 'Saldo inicial'
+                : editing.type === 'transfer'
+                  ? 'Editar transferência'
+                  : 'Editar transação'
+              : 'Nova transação'}
+          </h2>
           <form className="form" onSubmit={onSubmit}>
             {editing?.kind !== 'opening_balance' ? (
               <label>
                 <span>Tipo</span>
                 <select
                   value={form.type}
-                  onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as TransactionType }))}
+                  disabled={Boolean(editing)}
+                  onChange={(e) => {
+                    const t = e.target.value as TransactionType
+                    setForm((f) => ({
+                      ...f,
+                      type: t,
+                      fromAccountId: t === 'transfer' ? f.fromAccountId || defaultAccountId : '',
+                      toAccountId: t === 'transfer' ? f.toAccountId : '',
+                      accountId: t !== 'transfer' ? f.accountId || defaultAccountId : f.accountId,
+                      category:
+                        t === 'transfer' ? 'transfer' : f.category === 'transfer' ? 'other' : f.category,
+                    }))
+                  }}
                 >
                   <option value="expense">Despesa</option>
                   <option value="income">Receita</option>
+                  <option value="transfer">Transferência</option>
                 </select>
               </label>
             ) : null}
@@ -591,7 +821,41 @@ function App() {
               />
             </label>
 
-            {editing?.kind !== 'opening_balance' ? (
+            {editing?.kind !== 'opening_balance' && form.type === 'transfer' ? (
+              <>
+                <label>
+                  <span>De (origem)</span>
+                  <select
+                    value={form.fromAccountId || defaultAccountId}
+                    onChange={(e) => setForm((f) => ({ ...f, fromAccountId: e.target.value }))}
+                  >
+                    {accounts.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>Para (destino)</span>
+                  <select
+                    value={form.toAccountId}
+                    onChange={(e) => setForm((f) => ({ ...f, toAccountId: e.target.value }))}
+                  >
+                    <option value="">Selecione…</option>
+                    {accounts
+                      .filter((a) => a.id !== (form.fromAccountId || defaultAccountId))
+                      .map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.name}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+              </>
+            ) : null}
+
+            {editing?.kind !== 'opening_balance' && form.type !== 'transfer' ? (
               <>
                 <label>
                   <span>Conta</span>
@@ -621,12 +885,14 @@ function App() {
                   </select>
                 </label>
               </>
-            ) : (
+            ) : null}
+
+            {editing?.kind === 'opening_balance' ? (
               <label className="full">
                 <span>Conta</span>
                 <input readOnly value={accountName(editing.accountId)} />
               </label>
-            )}
+            ) : null}
 
             <label className="full">
               <span>Descrição (opcional)</span>
@@ -669,6 +935,8 @@ function App() {
                     <div className="itemTop">
                       {t.kind === 'opening_balance' ? (
                         <strong className="neutral">{signedFormatCents(t.amountCents)}</strong>
+                      ) : t.type === 'transfer' ? (
+                        <strong className="neutral">↔ {formatCents(t.amountCents)}</strong>
                       ) : (
                         <strong className={t.type === 'income' ? 'positive' : 'negative'}>
                           {t.type === 'income' ? '+' : '−'} {formatCents(t.amountCents)}
@@ -679,9 +947,16 @@ function App() {
                     <div className="muted">
                       {t.kind === 'opening_balance' ? (
                         <>Saldo inicial • {accountName(t.accountId)}</>
+                      ) : t.type === 'transfer' ? (
+                        <>
+                          Transferência • {accountName(t.fromAccountId ?? '')} →{' '}
+                          {accountName(t.toAccountId ?? '')}
+                          {t.description ? ` • ${t.description}` : ''}
+                        </>
                       ) : (
                         <>
-                          {categories.find((c) => c.id === t.category)?.label ?? t.category} • {accountName(t.accountId)}
+                          {categories.find((c) => c.id === t.category)?.label ?? t.category} •{' '}
+                          {accountName(t.accountId)}
                           {t.description ? ` • ${t.description}` : ''}
                         </>
                       )}

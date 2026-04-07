@@ -44,6 +44,12 @@ export class AppDB extends Dexie {
           if (t.accountId == null) t.accountId = DEFAULT_ACCOUNT_ID
         })
       })
+
+    this.version(3).stores({
+      transactions:
+        'id, date, type, kind, category, accountId, fromAccountId, toAccountId, createdAt, updatedAt',
+      accounts: 'id, isDefault, isArchived, createdAt, updatedAt',
+    })
   }
 }
 

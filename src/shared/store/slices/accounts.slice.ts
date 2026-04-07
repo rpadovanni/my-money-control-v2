@@ -1,5 +1,5 @@
 import type { StateCreator } from 'zustand'
-import { todayISODate } from '../../lib/dates'
+import { currentMonthYYYYMM, todayISODate } from '../../lib/dates'
 import { accountsRepo } from '../../lib/db/accounts.repo'
 import { transactionsRepo } from '../../lib/db/transactions.repo'
 import type {
@@ -17,6 +17,8 @@ export interface AccountsSliceState {
   archivedItems: Account[]
   /** Saldo acumulado por `accountId` (centavos). */
   balancesByAccountId: Record<string, number>
+  /** “A pagar” no mês civil atual, por cartão (`credit_card`). */
+  creditCardPayableByAccountId: Record<string, number>
 }
 
 export interface AddAccountInput extends NewAccountInput {
@@ -42,14 +44,23 @@ export type AccountsSlice = {
 } & AccountsSliceActions
 
 async function loadAccounts(set: (fn: (s: StoreState) => StoreState) => void) {
-  const [items, archivedItems, balancesByAccountId] = await Promise.all([
+  const month = currentMonthYYYYMM()
+  const [items, archivedItems, balancesByAccountId, creditCardPayableByAccountId] = await Promise.all([
     accountsRepo.list(),
     accountsRepo.listArchived(),
     transactionsRepo.getBalancesCentsByAccountId(),
+    transactionsRepo.getCreditCardPayablesForMonth(month),
   ])
   set((s) => ({
     ...s,
-    accounts: { ...s.accounts, items, archivedItems, balancesByAccountId, ready: true },
+    accounts: {
+      ...s.accounts,
+      items,
+      archivedItems,
+      balancesByAccountId,
+      creditCardPayableByAccountId,
+      ready: true,
+    },
   }))
 }
 
@@ -59,6 +70,7 @@ export const createAccountsSlice: StateCreator<StoreState, [], [], AccountsSlice
     items: [],
     archivedItems: [],
     balancesByAccountId: {},
+    creditCardPayableByAccountId: {},
   },
 
   accountsInit: async () => {
@@ -152,7 +164,14 @@ export const createAccountsSlice: StateCreator<StoreState, [], [], AccountsSlice
   },
 
   refreshAccountBalances: async () => {
-    const balancesByAccountId = await transactionsRepo.getBalancesCentsByAccountId()
-    set((s) => ({ ...s, accounts: { ...s.accounts, balancesByAccountId } }))
+    const month = currentMonthYYYYMM()
+    const [balancesByAccountId, creditCardPayableByAccountId] = await Promise.all([
+      transactionsRepo.getBalancesCentsByAccountId(),
+      transactionsRepo.getCreditCardPayablesForMonth(month),
+    ])
+    set((s) => ({
+      ...s,
+      accounts: { ...s.accounts, balancesByAccountId, creditCardPayableByAccountId },
+    }))
   },
 })

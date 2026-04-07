@@ -44,6 +44,7 @@ const DEFAULT_CATEGORIES: TransactionCategory[] = [
   { id: 'education', label: 'Educação' },
   { id: 'entertainment', label: 'Lazer' },
   { id: 'travel', label: 'Viagem' },
+  { id: 'transfer', label: 'Transferência' },
   { id: 'other', label: 'Outros' },
 ]
 
