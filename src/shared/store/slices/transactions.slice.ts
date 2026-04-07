@@ -1,5 +1,7 @@
 import type { StateCreator } from 'zustand'
+import { currentMonthYYYYMM } from '../../lib/dates'
 import { transactionsRepo } from '../../lib/db/transactions.repo'
+import type { StoreState } from '../store-state'
 import type {
   NewTransactionInput,
   Transaction,
@@ -21,6 +23,7 @@ export interface TransactionsSliceActions {
   setTransactionsMonth: (month: string) => Promise<void>
   setTransactionsType: (type: 'all' | TransactionType) => Promise<void>
   setTransactionsCategory: (category: string | null) => Promise<void>
+  setTransactionsAccount: (accountId: string | 'all') => Promise<void>
   addTransaction: (input: NewTransactionInput) => Promise<void>
   updateTransaction: (id: string, patch: UpdateTransactionInput) => Promise<void>
   deleteTransaction: (id: string) => Promise<void>
@@ -44,27 +47,25 @@ const DEFAULT_CATEGORIES: TransactionCategory[] = [
   { id: 'other', label: 'Outros' },
 ]
 
-function currentMonthISO() {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-}
-
-async function load(set: (fn: (s: TransactionsSlice) => TransactionsSlice) => void, get: () => TransactionsSlice) {
+async function load(set: (fn: (s: StoreState) => StoreState) => void, get: () => StoreState) {
   const items = await transactionsRepo.list(get().transactions.filters)
   set((s) => ({ ...s, transactions: { ...s.transactions, items, ready: true } }))
 }
 
-export const createTransactionsSlice: StateCreator<
-  TransactionsSlice,
-  [],
-  [],
-  TransactionsSlice
-> = (set, get) => ({
+async function afterTransactionMutation(
+  set: (fn: (s: StoreState) => StoreState) => void,
+  get: () => StoreState,
+) {
+  await load(set, get)
+  await get().refreshAccountBalances()
+}
+
+export const createTransactionsSlice: StateCreator<StoreState, [], [], TransactionsSlice> = (set, get) => ({
   transactions: {
     ready: false,
     items: [],
     categories: DEFAULT_CATEGORIES,
-    filters: { month: currentMonthISO(), type: 'all', category: null },
+    filters: { month: currentMonthYYYYMM(), type: 'all', category: null, accountId: 'all' },
   },
 
   transactionsInit: async (opts) => {
@@ -104,19 +105,26 @@ export const createTransactionsSlice: StateCreator<
     await load(set, get)
   },
 
+  setTransactionsAccount: async (accountId) => {
+    set((s) => ({
+      ...s,
+      transactions: { ...s.transactions, ready: false, filters: { ...s.transactions.filters, accountId } },
+    }))
+    await load(set, get)
+  },
+
   addTransaction: async (input) => {
     await transactionsRepo.add(input)
-    await load(set, get)
+    await afterTransactionMutation(set, get)
   },
 
   updateTransaction: async (id, patch) => {
     await transactionsRepo.update(id, patch)
-    await load(set, get)
+    await afterTransactionMutation(set, get)
   },
 
   deleteTransaction: async (id) => {
     await transactionsRepo.delete(id)
-    await load(set, get)
+    await afterTransactionMutation(set, get)
   },
 })
-

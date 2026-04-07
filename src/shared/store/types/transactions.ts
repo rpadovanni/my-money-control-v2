@@ -1,5 +1,7 @@
 export type TransactionType = 'income' | 'expense'
 
+export type TransactionKind = 'normal' | 'opening_balance'
+
 export type TransactionCategoryId =
   | 'food'
   | 'transport'
@@ -21,6 +23,8 @@ export interface TransactionCategory {
 export interface Transaction {
   id: string
   type: TransactionType
+  kind: TransactionKind
+  accountId: string
   amountCents: number
   date: string // YYYY-MM-DD
   category: TransactionCategoryId | string
@@ -33,18 +37,23 @@ export interface TransactionsFilters {
   month: string // YYYY-MM
   type: 'all' | TransactionType
   category: string | null
+  accountId: string | 'all'
 }
 
 export interface NewTransactionInput {
   type: TransactionType
+  accountId: string
+  /** Usado para saldo inicial: valor com sinal (positivo aumenta o saldo da conta). */
   amountCents: number
   date: string
   category: string
   description?: string
+  kind?: TransactionKind
 }
 
 export interface UpdateTransactionInput {
   type?: TransactionType
+  accountId?: string
   amountCents?: number
   date?: string
   category?: string
