@@ -449,3 +449,84 @@ button.danger {
   gap: 8px;
   justify-content: flex-end;
 }
+
+.row.row-2 {
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 640px) {
+  .row.row-2 {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.cloud-panel {
+  margin-bottom: 16px;
+}
+
+.top-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 16px;
+}
+
+.top-nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.82);
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.top-nav-link:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.top-nav-link.is-active {
+  border-color: rgba(120, 163, 255, 0.55);
+  box-shadow: 0 0 0 4px rgba(120, 163, 255, 0.14);
+}
+
+.cloud-panel-form .row.row-2 + .row-actions {
+  margin-top: 12px;
+}
+
+.cloud-auth-error {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(180, 60, 60, 0.22);
+  border: 1px solid rgba(255, 120, 120, 0.35);
+  color: rgba(255, 210, 210, 1);
+  font-size: 14px;
+}
+
+.code-block {
+  margin: 10px 0 0;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.22);
+  overflow: auto;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: pre;
+}

@@ -1,12 +1,15 @@
 import './App.css'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import {
   currentMonthYYYYMM,
   formatISODateForDisplay,
   formatMonthYearForDisplay,
   todayISODate,
 } from './shared/lib/dates'
+import { migrateLocalDexieToCloud, wasLocalDataMigratedForUser } from './shared/lib/data/migrate-local-to-cloud'
 import { summaryPeriodDelta } from './shared/lib/transaction-net'
+import { isSupabaseConfigured } from './shared/lib/supabase/client'
 import { useStore } from './shared/store'
 import type { Account, AccountType } from './shared/store/types/accounts'
 import type { TransactionType } from './shared/store/types/transactions'
@@ -37,10 +40,181 @@ type ConfirmDialogState =
   | { kind: 'delete-transaction'; transactionId: string }
   | { kind: 'archive-account'; accountId: string; displayName: string }
 
-function App() {
+function RequireConfigured({ children }: { children: React.ReactNode }) {
+  const ok = isSupabaseConfigured()
+  if (ok) return children
+  return (
+    <div className="container">
+      <header className="header">
+        <div>
+          <h1>My Money Control</h1>
+          <p className="muted">Configuração necessária para usar a versão em nuvem.</p>
+        </div>
+      </header>
+      <section className="card">
+        <h2>Configure o Supabase</h2>
+        <p className="muted">
+          Para usar rotas protegidas (login obrigatório), defina as variáveis no arquivo <code>.env</code>:
+        </p>
+        <pre className="code-block">{`VITE_SUPABASE_URL=...\nVITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...`}</pre>
+        <p className="muted">
+          Depois reinicie o <code>pnpm dev</code>. O passo a passo está em <code>README.md</code> e{' '}
+          <code>docs/supabase-cloud-mvp.md</code>.
+        </p>
+      </section>
+    </div>
+  )
+}
+
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const status = useStore((s) => s.auth.status)
+  const session = useStore((s) => s.auth.session)
+  const initAuth = useStore((s) => s.initAuth)
+  const location = useLocation()
+  const initOnceRef = useRef(false)
+
+  useEffect(() => {
+    if (!initOnceRef.current && status === 'idle') {
+      initOnceRef.current = true
+      void initAuth()
+    }
+  }, [initAuth, status])
+
+  if (status === 'idle' || status === 'loading') {
+    return (
+      <div className="container">
+        <section className="card">
+          <p className="muted">Verificando sessão…</p>
+        </section>
+      </div>
+    )
+  }
+
+  if (!session?.user) {
+    const from = location.pathname + location.search + location.hash
+    return <Navigate to={`/login?from=${encodeURIComponent(from)}`} replace />
+  }
+  return children
+}
+
+function LoginPage() {
+  const authStatus = useStore((s) => s.auth.status)
+  const authSession = useStore((s) => s.auth.session)
+  const authError = useStore((s) => s.auth.authError)
+  const initAuth = useStore((s) => s.initAuth)
+  const signInWithPassword = useStore((s) => s.signInWithPassword)
+  const clearAuthError = useStore((s) => s.clearAuthError)
+
+  const [authEmail, setAuthEmail] = useState('')
+  const [authPassword, setAuthPassword] = useState('')
+  const [authBusy, setAuthBusy] = useState(false)
+
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  useEffect(() => {
+    void initAuth()
+  }, [initAuth])
+
+  useEffect(() => {
+    if (!authSession?.user) return
+    const params = new URLSearchParams(location.search)
+    const from = params.get('from') || '/'
+    navigate(from, { replace: true })
+  }, [authSession?.user, location.search, navigate])
+
+  async function onAuthSignIn(e: React.FormEvent) {
+    e.preventDefault()
+    if (authBusy || !authEmail.trim() || !authPassword) return
+    setAuthBusy(true)
+    clearAuthError()
+    try {
+      await signInWithPassword(authEmail, authPassword)
+      setAuthPassword('')
+    } catch (err) {
+      // `authError` também pode vir do slice, mas garantimos feedback imediato aqui.
+      console.error(err)
+    } finally {
+      setAuthBusy(false)
+    }
+  }
+
+  return (
+    <div className="container">
+      <header className="header">
+        <div>
+          <h1>My Money Control</h1>
+          <p className="muted">Entre para acessar seus dados na nuvem.</p>
+        </div>
+        <div className="pill">
+          {authStatus === 'loading' || authStatus === 'idle' ? 'Sessão…' : authSession?.user ? 'Logado' : 'Login'}
+        </div>
+      </header>
+
+      <section className="card cloud-panel" aria-label="Login">
+        <h2>Login</h2>
+        {authError ? (
+          <p className="cloud-auth-error" role="alert">
+            {authError}
+          </p>
+        ) : null}
+        <form className="cloud-panel-form" onSubmit={(e) => void onAuthSignIn(e)}>
+          <div className="row row-2">
+            <label>
+              <span>E-mail</span>
+              <input
+                type="email"
+                name="email"
+                autoComplete="email"
+                value={authEmail}
+                onChange={(e) => setAuthEmail(e.target.value)}
+                disabled={authBusy}
+              />
+            </label>
+            <label>
+              <span>Senha</span>
+              <input
+                type="password"
+                name="password"
+                autoComplete="current-password"
+                value={authPassword}
+                onChange={(e) => setAuthPassword(e.target.value)}
+                disabled={authBusy}
+              />
+            </label>
+          </div>
+          <div className="row-actions">
+            <button type="submit" disabled={authBusy}>
+              {authBusy ? 'Aguarde…' : 'Entrar'}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  )
+}
+
+function Dashboard() {
+  const authStatus = useStore((s) => s.auth.status)
+  const authSession = useStore((s) => s.auth.session)
+  const initAuth = useStore((s) => s.initAuth)
+  const signOut = useStore((s) => s.signOut)
+
   const txReady = useStore((s) => s.transactions.ready)
   const accReady = useStore((s) => s.accounts.ready)
-  const ready = txReady && accReady
+  const authReady = authStatus === 'signedIn' || authStatus === 'signedOut'
+  const ready = authReady && txReady && accReady
+  const usingCloud =
+    isSupabaseConfigured() && authStatus === 'signedIn' && Boolean(authSession?.user)
+
+  const location = useLocation()
+  const navigate = useNavigate()
+  const view: 'home' | 'accounts' | 'transactions' =
+    location.pathname === '/accounts'
+      ? 'accounts'
+      : location.pathname === '/transactions'
+        ? 'transactions'
+        : 'home'
 
   const month = useStore((s) => s.transactions.filters.month)
   const typeFilter = useStore((s) => s.transactions.filters.type)
@@ -80,6 +254,8 @@ function App() {
   const [submittingAccountEdit, setSubmittingAccountEdit] = useState(false)
   const [submittingPayInvoice, setSubmittingPayInvoice] = useState(false)
   const payInvoiceAmountRef = useRef<HTMLInputElement>(null)
+
+  const [migratingLocal, setMigratingLocal] = useState(false)
 
   const [payInvoice, setPayInvoice] = useState<null | { cardId: string }>(null)
   const [payFromId, setPayFromId] = useState('')
@@ -164,11 +340,24 @@ function App() {
     openingDate: string
   }>(null)
 
+  const initDataRef = useRef<string | null>(null)
+
   useEffect(() => {
+    void initAuth()
+  }, [initAuth])
+
+  useEffect(() => {
+    if (authStatus !== 'signedIn' && authStatus !== 'signedOut') return
+    // Em dev, React StrictMode pode rodar effects duas vezes.
+    // Também pode haver múltiplas transições de status durante o bootstrap.
+    // Garantimos que o init de dados rode uma vez por "datasource" (local vs userId na nuvem).
+    const key = authSession?.user?.id ? `cloud:${authSession.user.id}` : 'local'
+    if (initDataRef.current === key) return
+    initDataRef.current = key
     void initAcc()
     void initTx({ month: currentMonthYYYYMM() })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [authStatus, authSession?.user?.id])
 
   useEffect(() => {
     if (defaultAccountId && !form.accountId) {
@@ -580,15 +769,109 @@ function App() {
 
   const faturaMesLabel = formatMonthYearForDisplay(currentMonthYYYYMM())
 
+  async function onMigrateLocalToCloud() {
+    const uid = authSession?.user?.id
+    if (!uid || migratingLocal) return
+    setMigratingLocal(true)
+    setNotice(null)
+    try {
+      const r = await migrateLocalDexieToCloud()
+      setNotice({
+        variant: 'success',
+        message:
+          r.accounts + r.transactions === 0
+            ? 'Não havia dados locais novos para enviar.'
+            : `Enviadas ${r.accounts} conta(s) e ${r.transactions} transação(ões).`,
+      })
+      await initAcc()
+      await initTx({ month })
+    } catch (err) {
+      setNotice({ variant: 'error', message: errMessage(err) })
+    } finally {
+      setMigratingLocal(false)
+    }
+  }
+
   return (
     <div className="container">
       <header className="header">
         <div>
           <h1>My Money Control</h1>
-          <p className="muted">Offline-first. Transações locais (IndexedDB).</p>
+          <p className="muted">
+            {usingCloud
+              ? 'Dados na nuvem (Supabase). Requer conexão para alterações.'
+              : isSupabaseConfigured()
+                ? 'Dados neste aparelho (IndexedDB). Entre na nuvem para sincronizar entre dispositivos.'
+                : 'Dados neste aparelho (IndexedDB). Opcional: variáveis VITE_SUPABASE_* para sync.'}
+          </p>
         </div>
-        <div className="pill">{ready ? 'Pronto' : 'Carregando...'}</div>
+        <div className="pill">
+          {!authReady ? 'Sessão…' : ready ? (usingCloud ? 'Nuvem' : 'Local') : 'Carregando…'}
+        </div>
       </header>
+
+      <nav className="top-nav" aria-label="Navegação principal">
+        <NavLink to="/" end className={({ isActive }) => (isActive ? 'top-nav-link is-active' : 'top-nav-link')}>
+          Início
+        </NavLink>
+        <NavLink
+          to="/transactions"
+          className={({ isActive }) => (isActive ? 'top-nav-link is-active' : 'top-nav-link')}
+        >
+          Transações
+        </NavLink>
+        <NavLink
+          to="/accounts"
+          className={({ isActive }) => (isActive ? 'top-nav-link is-active' : 'top-nav-link')}
+        >
+          Contas
+        </NavLink>
+      </nav>
+
+      {isSupabaseConfigured() ? (
+        <section className="card cloud-panel" aria-label="Conta na nuvem">
+          <h2>Nuvem</h2>
+          {authStatus === 'loading' ? (
+            <p className="muted">Verificando sessão…</p>
+          ) : authSession?.user ? (
+            <div className="cloud-panel-signedin">
+              <p className="muted">
+                Conectado como <strong>{authSession.user.email}</strong>
+              </p>
+              <div className="row-actions">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={
+                    migratingLocal || wasLocalDataMigratedForUser(authSession.user.id) || !ready
+                  }
+                  onClick={() => void onMigrateLocalToCloud()}
+                >
+                  {wasLocalDataMigratedForUser(authSession.user.id)
+                    ? 'Dados locais já enviados deste aparelho'
+                    : migratingLocal
+                      ? 'Enviando…'
+                      : 'Enviar dados deste aparelho para a nuvem'}
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => void signOut()}
+                >
+                  Sair
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => navigate('/login', { replace: true })}
+                >
+                  Trocar de conta
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       {notice ? (
         <div
@@ -608,91 +891,94 @@ function App() {
         </div>
       ) : null}
 
-      <section className="grid">
-        <div className="card">
-          <h2>Filtros</h2>
-          <p className="period-label muted">Período: {formatMonthYearForDisplay(month)}</p>
-          <div className="row row-4">
-            <label>
-              <span>Mês</span>
-              <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
-            </label>
+      {view !== 'accounts' ? (
+        <section className="grid">
+          <div className="card">
+            <h2>Filtros</h2>
+            <p className="period-label muted">Período: {formatMonthYearForDisplay(month)}</p>
+            <div className="row row-4">
+              <label>
+                <span>Mês</span>
+                <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+              </label>
 
-            <label>
-              <span>Conta</span>
-              <select
-                value={accountFilter}
-                onChange={(e) => setAccountFilter(e.target.value as typeof accountFilter)}
-              >
-                <option value="all">Todas</option>
-                {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                    {a.isDefault ? ' (padrão)' : ''}
-                  </option>
-                ))}
-              </select>
-            </label>
+              <label>
+                <span>Conta</span>
+                <select
+                  value={accountFilter}
+                  onChange={(e) => setAccountFilter(e.target.value as typeof accountFilter)}
+                >
+                  <option value="all">Todas</option>
+                  {accounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                      {a.isDefault ? ' (padrão)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-            <label>
-              <span>Tipo</span>
-              <select
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value as 'all' | TransactionType)}
-              >
-                <option value="all">Todos</option>
-                <option value="income">Receita</option>
-                <option value="expense">Despesa</option>
-                <option value="transfer">Transferência</option>
-              </select>
-            </label>
+              <label>
+                <span>Tipo</span>
+                <select
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value as 'all' | TransactionType)}
+                >
+                  <option value="all">Todos</option>
+                  <option value="income">Receita</option>
+                  <option value="expense">Despesa</option>
+                  <option value="transfer">Transferência</option>
+                </select>
+              </label>
 
-            <label>
-              <span>Categoria</span>
-              <select
-                value={categoryFilter ?? 'all'}
-                onChange={(e) => setCategoryFilter(e.target.value === 'all' ? null : e.target.value)}
-              >
-                <option value="all">Todas</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-        </div>
-
-        <div className="card">
-          <h2>Resumo — {formatMonthYearForDisplay(month)}</h2>
-          <div className="summary summary-4">
-            <div>
-              <div className="muted">Receitas</div>
-              <div className="value">{formatCents(summary.income)}</div>
-            </div>
-            <div>
-              <div className="muted">Despesas</div>
-              <div className="value">{formatCents(summary.expense)}</div>
-            </div>
-            <div>
-              <div className="muted">Resultado</div>
-              <div className={summary.flow >= 0 ? 'value positive' : 'value negative'}>
-                {formatCents(summary.flow)}
-              </div>
-              <div className="hint">Receitas − despesas (sem saldo inicial nem transferências)</div>
-            </div>
-            <div>
-              <div className="muted">Saldo no período</div>
-              <div className={summary.period >= 0 ? 'value positive' : 'value negative'}>
-                {formatCents(summary.period)}
-              </div>
-              <div className="hint">Inclui saldo inicial e movimentos</div>
+              <label>
+                <span>Categoria</span>
+                <select
+                  value={categoryFilter ?? 'all'}
+                  onChange={(e) => setCategoryFilter(e.target.value === 'all' ? null : e.target.value)}
+                >
+                  <option value="all">Todas</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
           </div>
-        </div>
-      </section>
 
+          <div className="card">
+            <h2>Resumo — {formatMonthYearForDisplay(month)}</h2>
+            <div className="summary summary-4">
+              <div>
+                <div className="muted">Receitas</div>
+                <div className="value">{formatCents(summary.income)}</div>
+              </div>
+              <div>
+                <div className="muted">Despesas</div>
+                <div className="value">{formatCents(summary.expense)}</div>
+              </div>
+              <div>
+                <div className="muted">Resultado</div>
+                <div className={summary.flow >= 0 ? 'value positive' : 'value negative'}>
+                  {formatCents(summary.flow)}
+                </div>
+                <div className="hint">Receitas − despesas (sem saldo inicial nem transferências)</div>
+              </div>
+              <div>
+                <div className="muted">Saldo no período</div>
+                <div className={summary.period >= 0 ? 'value positive' : 'value negative'}>
+                  {formatCents(summary.period)}
+                </div>
+                <div className="hint">Inclui saldo inicial e movimentos</div>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {view === 'accounts' ? (
       <section className="grid">
         <div className="card">
           <h2>Contas</h2>
@@ -1147,7 +1433,9 @@ function App() {
           </form>
         </div>
       </section>
+      ) : null}
 
+      {view !== 'accounts' ? (
       <section className="grid single">
         <div className="card">
           <h2>Transações</h2>
@@ -1209,6 +1497,7 @@ function App() {
           )}
         </div>
       </section>
+      ) : null}
 
       {confirmDialog ? (
         <div
@@ -1255,4 +1544,48 @@ function App() {
   )
 }
 
-export default App
+export default function App() {
+  return (
+    <Routes>
+      <Route
+        path="/login"
+        element={
+          <RequireConfigured>
+            <LoginPage />
+          </RequireConfigured>
+        }
+      />
+      <Route
+        path="/"
+        element={
+          <RequireConfigured>
+            <RequireAuth>
+              <Dashboard />
+            </RequireAuth>
+          </RequireConfigured>
+        }
+      />
+      <Route
+        path="/transactions"
+        element={
+          <RequireConfigured>
+            <RequireAuth>
+              <Dashboard />
+            </RequireAuth>
+          </RequireConfigured>
+        }
+      />
+      <Route
+        path="/accounts"
+        element={
+          <RequireConfigured>
+            <RequireAuth>
+              <Dashboard />
+            </RequireAuth>
+          </RequireConfigured>
+        }
+      />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
+}

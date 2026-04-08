@@ -1,6 +1,6 @@
 import type { StateCreator } from 'zustand'
 import { currentMonthYYYYMM } from '../../lib/dates'
-import { transactionsRepo } from '../../lib/db/transactions.repo'
+import { transactionsRepo } from '../../lib/data/transactions.gateway'
 import type { StoreState } from '../store-state'
 import type {
   NewTransactionInput,

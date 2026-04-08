@@ -1,7 +1,7 @@
 import type { StateCreator } from 'zustand'
 import { currentMonthYYYYMM, todayISODate } from '../../lib/dates'
-import { accountsRepo } from '../../lib/db/accounts.repo'
-import { transactionsRepo } from '../../lib/db/transactions.repo'
+import { accountsRepo } from '../../lib/data/accounts.gateway'
+import { transactionsRepo } from '../../lib/data/transactions.gateway'
 import type {
   Account,
   AccountOpeningSnapshot,

@@ -81,5 +81,5 @@ export class AccountsRepository {
   }
 }
 
-export const accountsRepo = new AccountsRepository()
+export const localAccountsRepo = new AccountsRepository()
 

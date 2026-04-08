@@ -1,7 +1,8 @@
-import { monthDayBounds, nowTimestampISO } from '../dates'
 import { applyTransactionToBalanceMap } from '../transaction-net'
-import { db } from './dexie'
-import type { Account } from '../../store/types/accounts'
+import { monthDayBounds, nowTimestampISO } from '../dates'
+import { requireRemote } from './remote-context'
+import type { AccountRow, TransactionRow } from './supabase-mappers'
+import { rowToAccount, rowToTransaction, transactionToRow } from './supabase-mappers'
 import type {
   NewTransactionInput,
   Transaction,
@@ -9,24 +10,45 @@ import type {
   UpdateTransactionInput,
 } from '../../store/types/transactions'
 
-export class TransactionsRepository {
+export const remoteTransactionsRepo = {
   async list(filters: TransactionsFilters): Promise<Transaction[]> {
+    const { client, userId } = requireRemote()
     const { startISO, endISO } = monthDayBounds(filters.month)
 
-    let coll = db.transactions.where('date').between(startISO, endISO, true, true)
+    let q = client
+      .from('transactions')
+      .select('*')
+      .eq('user_id', userId)
+      .gte('date', startISO)
+      .lte('date', endISO)
+
     if (filters.type !== 'all') {
       if (filters.type === 'transfer') {
-        coll = coll.and((t) => t.type === 'transfer')
+        q = q.eq('type', 'transfer')
       } else {
-        coll = coll.and((t) => t.kind === 'normal' && t.type === filters.type)
+        q = q.eq('kind', 'normal').eq('type', filters.type)
       }
     }
+
     if (filters.category) {
-      coll = coll.and((t) => t.category === filters.category)
+      q = q.eq('category', filters.category)
     }
+
+    let needAccountFilter = false
+    let accountFilterId = ''
     if (filters.accountId !== 'all') {
-      const id = filters.accountId
-      coll = coll.and((t) => {
+      needAccountFilter = true
+      accountFilterId = filters.accountId
+    }
+
+    const { data, error } = await q
+    if (error) throw new Error(error.message)
+
+    let items = (data ?? []).map((r) => rowToTransaction(r as TransactionRow))
+
+    if (needAccountFilter) {
+      const id = accountFilterId
+      items = items.filter((t) => {
         if (t.type === 'transfer') {
           return t.fromAccountId === id || t.toAccountId === id
         }
@@ -34,12 +56,14 @@ export class TransactionsRepository {
       })
     }
 
-    const items = await coll.toArray()
-    items.sort((a, b) => (a.date === b.date ? b.createdAt.localeCompare(a.createdAt) : b.date.localeCompare(a.date)))
+    items.sort((a, b) =>
+      a.date === b.date ? b.createdAt.localeCompare(a.createdAt) : b.date.localeCompare(a.date),
+    )
     return items
-  }
+  },
 
   async add(input: NewTransactionInput): Promise<Transaction> {
+    const { client, userId } = requireRemote()
     const ts = nowTimestampISO()
     const kind = input.kind ?? 'normal'
 
@@ -64,18 +88,20 @@ export class TransactionsRepository {
         createdAt: ts,
         updatedAt: ts,
       }
-      await db.transactions.add(tx)
+      const row = transactionToRow(tx, userId)
+      const { error } = await client.from('transactions').insert(row)
+      if (error) throw new Error(error.message)
       return tx
     }
 
     if (!input.accountId) throw new Error('Conta obrigatória')
-
     if (kind === 'normal' && input.amountCents <= 0) {
       throw new Error('Valor da transação deve ser maior que zero')
     }
     if (kind === 'opening_balance' && input.amountCents === 0) {
       throw new Error('Saldo inicial não pode ser zero')
     }
+
     const tx: Transaction = {
       id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`,
       type: input.type,
@@ -88,15 +114,24 @@ export class TransactionsRepository {
       createdAt: ts,
       updatedAt: ts,
     }
-
-    await db.transactions.add(tx)
+    const row = transactionToRow(tx, userId)
+    const { error } = await client.from('transactions').insert(row)
+    if (error) throw new Error(error.message)
     return tx
-  }
+  },
 
   async update(id: string, patch: UpdateTransactionInput): Promise<Transaction | null> {
-    const existing = await db.transactions.get(id)
-    if (!existing) return null
+    const { client, userId } = requireRemote()
+    const { data: row, error: gErr } = await client
+      .from('transactions')
+      .select('*')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .maybeSingle()
+    if (gErr) throw new Error(gErr.message)
+    if (!row) return null
 
+    const existing = rowToTransaction(row as TransactionRow)
     const next: Transaction = {
       ...existing,
       ...patch,
@@ -115,30 +150,65 @@ export class TransactionsRepository {
       if (!next.category) next.category = 'transfer'
     }
 
-    await db.transactions.put(next)
+    const out = transactionToRow(next, userId)
+    const { error } = await client
+      .from('transactions')
+      .update({
+        type: out.type,
+        kind: out.kind,
+        account_id: out.account_id,
+        from_account_id: out.from_account_id,
+        to_account_id: out.to_account_id,
+        amount_cents: out.amount_cents,
+        date: out.date,
+        category: out.category,
+        description: out.description,
+        updated_at: out.updated_at,
+      })
+      .eq('id', id)
+      .eq('user_id', userId)
+
+    if (error) throw new Error(error.message)
     return next
-  }
+  },
 
   async delete(id: string): Promise<void> {
-    await db.transactions.delete(id)
-  }
+    const { client, userId } = requireRemote()
+    const { error } = await client.from('transactions').delete().eq('id', id).eq('user_id', userId)
+    if (error) throw new Error(error.message)
+  },
 
   async getOpeningBalanceForAccount(accountId: string): Promise<Transaction | null> {
-    const rows = await db.transactions
-      .filter((t) => t.accountId === accountId && t.kind === 'opening_balance')
-      .toArray()
+    const { client, userId } = requireRemote()
+    const { data, error } = await client
+      .from('transactions')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('account_id', accountId)
+      .eq('kind', 'opening_balance')
+    if (error) throw new Error(error.message)
+    const rows = (data ?? []).map((r) => rowToTransaction(r as TransactionRow))
     if (rows.length === 0) return null
     rows.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
     return rows[0] ?? null
-  }
+  },
 
-  async setOpeningBalanceForAccount(accountId: string, amountCents: number | null, date: string): Promise<void> {
-    const rows = await db.transactions
-      .filter((t) => t.accountId === accountId && t.kind === 'opening_balance')
-      .toArray()
-    await Promise.all(rows.map((row) => db.transactions.delete(row.id)))
+  async setOpeningBalanceForAccount(
+    accountId: string,
+    amountCents: number | null,
+    date: string,
+  ): Promise<void> {
+    const { client, userId } = requireRemote()
+    const { error: delErr } = await client
+      .from('transactions')
+      .delete()
+      .eq('user_id', userId)
+      .eq('account_id', accountId)
+      .eq('kind', 'opening_balance')
+    if (delErr) throw new Error(delErr.message)
+
     if (amountCents != null && amountCents !== 0) {
-      await this.add({
+      await remoteTransactionsRepo.add({
         type: 'income',
         kind: 'opening_balance',
         accountId,
@@ -148,28 +218,41 @@ export class TransactionsRepository {
         description: 'Saldo inicial',
       })
     }
-  }
+  },
 
   async getBalancesCentsByAccountId(): Promise<Record<string, number>> {
-    const all = await db.transactions.toArray()
+    const { client, userId } = requireRemote()
+    const { data, error } = await client.from('transactions').select('*').eq('user_id', userId)
+    if (error) throw new Error(error.message)
     const out: Record<string, number> = {}
-    for (const t of all) {
-      applyTransactionToBalanceMap(t, out)
+    for (const r of data ?? []) {
+      applyTransactionToBalanceMap(rowToTransaction(r as TransactionRow), out)
     }
     return out
-  }
+  },
 
-  /**
-   * “A pagar” no mês civil `monthYYYYMM`: despesas no cartão − transferências recebidas no cartão no mesmo mês.
-   */
   async getCreditCardPayablesForMonth(monthYYYYMM: string): Promise<Record<string, number>> {
+    const { client, userId } = requireRemote()
     const { startISO, endISO } = monthDayBounds(monthYYYYMM)
-    const [rows, accounts] = await Promise.all([
-      db.transactions.where('date').between(startISO, endISO, true, true).toArray(),
-      db.accounts.toArray() as Promise<Account[]>,
+
+    const [{ data: txData, error: txErr }, { data: accData, error: accErr }] = await Promise.all([
+      client
+        .from('transactions')
+        .select('*')
+        .eq('user_id', userId)
+        .gte('date', startISO)
+        .lte('date', endISO),
+      client.from('accounts').select('*').eq('user_id', userId),
     ])
+
+    if (txErr) throw new Error(txErr.message)
+    if (accErr) throw new Error(accErr.message)
+
+    const accounts = (accData ?? []).map((r) => rowToAccount(r as AccountRow))
     const creditIds = new Set(accounts.filter((a) => a.type === 'credit_card').map((a) => a.id))
     if (creditIds.size === 0) return {}
+
+    const rows = (txData ?? []).map((r) => rowToTransaction(r as TransactionRow))
 
     const expensesByCard: Record<string, number> = {}
     const paymentsByCard: Record<string, number> = {}
@@ -190,7 +273,5 @@ export class TransactionsRepository {
       out[id] = Math.max(0, e - p)
     }
     return out
-  }
+  },
 }
-
-export const localTransactionsRepo = new TransactionsRepository()

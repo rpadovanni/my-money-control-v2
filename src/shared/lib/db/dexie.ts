@@ -38,8 +38,9 @@ export class AppDB extends Dexie {
           await accounts.update(DEFAULT_ACCOUNT_ID, { isDefault: true, updatedAt: ts })
         }
 
-        const transactions = tx.table('transactions') as Dexie.Table<any, string>
-        await transactions.toCollection().modify((t: any) => {
+        type LegacyTx = { kind?: unknown; accountId?: unknown }
+        const transactions = tx.table('transactions') as Dexie.Table<LegacyTx, string>
+        await transactions.toCollection().modify((t) => {
           if (t.kind == null) t.kind = 'normal'
           if (t.accountId == null) t.accountId = DEFAULT_ACCOUNT_ID
         })
