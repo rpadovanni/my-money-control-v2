@@ -19,23 +19,28 @@
 ```
 (Global Store)
  |
- ├── user.slice ← usado por: layout, header, profile-page
+ ├── auth.slice ← sessão Supabase (MVP nuvem): login, logout, estado signed in/out
  |
- ├── settings.slice ← usado por: theme-provider, currency formatter
+ ├── accounts.slice ← contas (fonte: remoto após login; ver docs/supabase-cloud-mvp.md)
  |
- ├── planning.slice ← usado por: planning-page, charts, budget-calc
- |
- ├── transactions.slice ← usado por: dashboard, statements, summaries
- |
- └── investments.slice ← usado por: portfolio-page, charts, api-sync
+ └── transactions.slice ← transações (idem)
 ```
+
+Slices aspiracionais (ainda não no repo): `user` perfil, `settings`, `planning`, `investments` — não adicionar até existirem telas.
+
+## Dados remotos (Supabase, MVP nuvem)
+
+- **Plano e checklist:** `docs/supabase-cloud-mvp.md`
+- **Regra:** slices **não** importam `@supabase/supabase-js`. Cliente e chamadas ficam em `src/shared/lib/` (ex.: `supabase/client.ts`, `data/` ou `repositories/`), e os slices apenas chamam essas funções.
+- **Online-first:** com sessão ativa, **Postgres (Supabase)** é a fonte da verdade; Dexie pode permanecer só para **migração** ou modo legado até remoção, não como fila de sync no MVP.
+- **RLS:** toda tabela com `user_id` deve ter políticas testadas; nunca confiar só no frontend.
 
 ## Tarefas Automáticas
 
 Ao criar ou refatorar código:
 
 1. **Refatorar automaticamente** qualquer arquivo para seguir essas regras
-2. **Criar novos slices** conforme necessidade seguindo o blueprint em `docs/architecture.md` (quando existir)
+2. **Criar novos slices** conforme necessidade; para backend/nuvem seguir `docs/supabase-cloud-mvp.md`
 3. **Nunca criar** sistemas de diretórios complexos
 4. **Centralizar tipos** em `src/shared/store/types`
 5. **Manter slices independentes** (sem imports entre slices)
@@ -75,6 +80,7 @@ updateSettings({ theme: 'dark' });
 - ❌ Criar contexts React para estado global
 - ❌ Criar stores separados por feature
 - ❌ Fazer slices importarem outros slices
+- ❌ Importar o cliente Supabase (ou HTTP direto ao backend) **dentro** de `store/slices/`
 - ❌ Usar padrões enterprise complexos
 - ❌ Criar sistemas de diretórios complexos
 - ❌ Duplicar lógica de estado
