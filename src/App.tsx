@@ -16,6 +16,7 @@ import {
   Plus,
   Receipt,
   Star,
+  Tags,
   Trash2,
   Undo2,
   WalletCards,
@@ -228,18 +229,22 @@ function Dashboard() {
 
   const txReady = useStore((s) => s.transactions.ready)
   const accReady = useStore((s) => s.accounts.ready)
+  const catReady = useStore((s) => s.categories.ready)
+  const categoriesInitError = useStore((s) => s.categories.initError)
   const authReady = authStatus === 'signedIn' || authStatus === 'signedOut'
-  const ready = authReady && txReady && accReady
+  const ready = authReady && txReady && accReady && catReady
   const usingCloud =
     isSupabaseConfigured() && authStatus === 'signedIn' && Boolean(authSession?.user)
 
   const location = useLocation()
-  const view: 'home' | 'accounts' | 'transactions' =
+  const view: 'home' | 'accounts' | 'transactions' | 'categories' =
     location.pathname === '/accounts'
       ? 'accounts'
       : location.pathname === '/transactions'
         ? 'transactions'
-        : 'home'
+        : location.pathname === '/categories'
+          ? 'categories'
+          : 'home'
 
   const showTxFiltersSummary = view === 'home' || view === 'transactions'
   const showAccounts = view === 'home' || view === 'accounts'
@@ -250,7 +255,7 @@ function Dashboard() {
   const categoryFilter = useStore((s) => s.transactions.filters.category)
   const accountFilter = useStore((s) => s.transactions.filters.accountId)
 
-  const categories = useStore((s) => s.transactions.categories)
+  const categories = useStore((s) => s.categories.items)
   const rows = useStore((s) => s.transactions.items)
   const accounts = useStore((s) => s.accounts.items)
   const archivedAccounts = useStore((s) => s.accounts.archivedItems)
@@ -259,6 +264,10 @@ function Dashboard() {
 
   const initTx = useStore((s) => s.transactionsInit)
   const initAcc = useStore((s) => s.accountsInit)
+  const initCat = useStore((s) => s.categoriesInit)
+  const addCategory = useStore((s) => s.addCategory)
+  const updateCategory = useStore((s) => s.updateCategory)
+  const deleteCategory = useStore((s) => s.deleteCategory)
   const setMonth = useStore((s) => s.setTransactionsMonth)
   const setTypeFilter = useStore((s) => s.setTransactionsType)
   const setCategoryFilter = useStore((s) => s.setTransactionsCategory)
@@ -430,6 +439,10 @@ function Dashboard() {
     openingDate: string
   }>(null)
 
+  const [categoryNewLabel, setCategoryNewLabel] = useState('')
+  const [categoryEdit, setCategoryEdit] = useState<null | { id: string; label: string }>(null)
+  const [submittingCategory, setSubmittingCategory] = useState(false)
+
   const initDataRef = useRef<string | null>(null)
 
   useEffect(() => {
@@ -442,8 +455,20 @@ function Dashboard() {
     initDataRef.current = key
     void initAcc()
     void initTx({ month: currentMonthYYYYMM() })
+    void initCat()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authStatus, authSession?.user?.id])
+
+  useEffect(() => {
+    if (!catReady || categories.length === 0) return
+    const ids = new Set(categories.map((c) => c.id))
+    if (form.type === 'transfer') return
+    if (!ids.has(form.category)) {
+      const fallback =
+        (ids.has('other') ? 'other' : categories.find((c) => c.id !== 'transfer')?.id) ?? form.category
+      setForm((f) => ({ ...f, category: fallback }))
+    }
+  }, [catReady, categories, form.category, form.type])
 
   useEffect(() => {
     if (defaultAccountId && !form.accountId) {
@@ -876,10 +901,53 @@ function Dashboard() {
       )
       await initAcc()
       await initTx({ month })
+      await initCat()
     } catch (err) {
       setNotice({ variant: 'error', message: errMessage(err) })
     } finally {
       setMigratingLocal(false)
+    }
+  }
+
+  async function onAddCategory(e: React.FormEvent) {
+    e.preventDefault()
+    const label = categoryNewLabel.trim()
+    if (!label || submittingCategory) return
+    setSubmittingCategory(true)
+    try {
+      await addCategory(label)
+      setCategoryNewLabel('')
+      pushToast('success', 'Categoria criada.')
+    } catch (err) {
+      pushToast('error', errMessage(err))
+    } finally {
+      setSubmittingCategory(false)
+    }
+  }
+
+  async function onSaveCategoryEdit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!categoryEdit || submittingCategory) return
+    const label = categoryEdit.label.trim()
+    if (!label) return
+    setSubmittingCategory(true)
+    try {
+      await updateCategory(categoryEdit.id, label)
+      setCategoryEdit(null)
+      pushToast('success', 'Categoria atualizada.')
+    } catch (err) {
+      pushToast('error', errMessage(err))
+    } finally {
+      setSubmittingCategory(false)
+    }
+  }
+
+  async function onDeleteCategory(id: string) {
+    try {
+      await deleteCategory(id)
+      pushToast('success', 'Categoria excluída.')
+    } catch (err) {
+      pushToast('error', errMessage(err))
     }
   }
 
@@ -1006,11 +1074,13 @@ function Dashboard() {
                   value={form.category}
                   onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
                 >
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.label}
-                    </option>
-                  ))}
+                  {categories
+                    .filter((c) => c.id !== 'transfer')
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.label}
+                      </option>
+                    ))}
                 </select>
               </label>
             </>
@@ -1083,9 +1153,9 @@ function Dashboard() {
         ) : (
           <ul className="list">
             {rows.map((t) => (
-              <li key={t.id} className="item">
+              <li key={t.id} className="item item-row-card">
                 <div className="itemMain">
-                  <div className="itemTop">
+                  <div className="tx-card-amount-line">
                     {t.kind === 'opening_balance' ? (
                       <strong className="neutral">{signedFormatCents(t.amountCents)}</strong>
                     ) : t.type === 'transfer' ? (
@@ -1095,9 +1165,8 @@ function Dashboard() {
                         {t.type === 'income' ? '+' : '−'} {formatCents(t.amountCents)}
                       </strong>
                     )}
-                    <span className="muted">{formatISODateForDisplay(t.date)}</span>
                   </div>
-                  <div className="muted">
+                  <div className="muted tx-card-detail">
                     {t.kind === 'opening_balance' ? (
                       <>Saldo inicial • {accountName(t.accountId)}</>
                     ) : t.type === 'transfer' ? (
@@ -1115,25 +1184,28 @@ function Dashboard() {
                     )}
                   </div>
                 </div>
-                <div className="itemActions">
-                  <button
-                    type="button"
-                    className="ghost icon-btn"
-                    onClick={() => setEditingId(t.id)}
-                    aria-label="Editar transação"
-                    title="Editar"
-                  >
-                    <Pencil aria-hidden />
-                  </button>
-                  <button
-                    type="button"
-                    className="danger icon-btn"
-                    onClick={() => void requestDeleteTransaction(t.id)}
-                    aria-label="Excluir transação"
-                    title="Excluir"
-                  >
-                    <Trash2 aria-hidden />
-                  </button>
+                <div className="item-aside">
+                  <span className="item-aside-meta muted">{formatISODateForDisplay(t.date)}</span>
+                  <div className="itemActions">
+                    <button
+                      type="button"
+                      className="ghost icon-btn"
+                      onClick={() => setEditingId(t.id)}
+                      aria-label="Editar transação"
+                      title="Editar"
+                    >
+                      <Pencil aria-hidden />
+                    </button>
+                    <button
+                      type="button"
+                      className="danger icon-btn"
+                      onClick={() => void requestDeleteTransaction(t.id)}
+                      aria-label="Excluir transação"
+                      title="Excluir"
+                    >
+                      <Trash2 aria-hidden />
+                    </button>
+                  </div>
                 </div>
               </li>
             ))}
@@ -1253,10 +1325,23 @@ function Dashboard() {
           <WalletCards className="top-nav-icon" aria-hidden />
           <span>Contas</span>
         </NavLink>
+        <NavLink
+          to="/categories"
+          className={({ isActive }) => (isActive ? 'top-nav-link is-active' : 'top-nav-link')}
+        >
+          <Tags className="top-nav-icon" aria-hidden />
+          <span>Categorias</span>
+        </NavLink>
       </nav>
 
       {view !== 'home' ? (
-        <h2 className="page-title">{view === 'transactions' ? 'Transações' : 'Contas'}</h2>
+        <h2 className="page-title">
+          {view === 'transactions'
+            ? 'Transações'
+            : view === 'accounts'
+              ? 'Contas'
+              : 'Categorias'}
+        </h2>
       ) : null}
 
       {notice ? (
@@ -1273,6 +1358,165 @@ function Dashboard() {
             aria-label="Fechar aviso"
           >
             <X className="btn-icon" aria-hidden />
+          </button>
+        </div>
+      ) : null}
+
+      {view === 'categories' ? (
+        <section className="grid single">
+          <div className="card">
+            <h2>Gerenciar categorias</h2>
+            <p className="hint accounts-hint">
+              Use categorias como &quot;Ajuste&quot; para alinhar faturas sem lançar tudo retroativamente. A
+              categoria &quot;Transferência&quot; é reservada ao app. Não dá para excluir uma categoria que
+              ainda tenha lançamentos — altere ou apague esses lançamentos antes.
+            </p>
+            <form
+              className="form account-form"
+              onSubmit={(e) => {
+                void onAddCategory(e)
+              }}
+            >
+              <label className="full">
+                <span>Nova categoria</span>
+                <input
+                  value={categoryNewLabel}
+                  onChange={(e) => setCategoryNewLabel(e.target.value)}
+                  placeholder="ex.: Ajuste"
+                  maxLength={80}
+                  autoComplete="off"
+                  disabled={Boolean(categoriesInitError)}
+                />
+              </label>
+              <div className="actions">
+                <button
+                  type="submit"
+                  disabled={
+                    submittingCategory ||
+                    !categoryNewLabel.trim() ||
+                    Boolean(categoriesInitError)
+                  }
+                  className="btn-with-icon"
+                >
+                  {submittingCategory ? (
+                    <Loader2 className="btn-icon icon-spin" aria-hidden />
+                  ) : (
+                    <Plus className="btn-icon" aria-hidden />
+                  )}
+                  <span>{submittingCategory ? 'Salvando…' : 'Incluir'}</span>
+                </button>
+              </div>
+            </form>
+
+            {!catReady ? (
+              <p className="muted">Carregando…</p>
+            ) : categoriesInitError ? (
+              <p className="muted">
+                Lista indisponível até o Supabase estar correto. Use o aviso acima e &quot;Tentar
+                novamente&quot;.
+              </p>
+            ) : categories.length === 0 ? (
+              <p className="muted">Nenhuma categoria.</p>
+            ) : (
+              <ul className="list accounts-list">
+                {categories.map((c) => (
+                  <li key={c.id} className="item item-row-card">
+                    <div className="itemMain">
+                      {categoryEdit?.id === c.id ? (
+                        <form
+                          className="form account-form"
+                          onSubmit={(e) => {
+                            void onSaveCategoryEdit(e)
+                          }}
+                        >
+                          <label className="full">
+                            <span>Nome</span>
+                            <input
+                              value={categoryEdit.label}
+                              onChange={(e) =>
+                                setCategoryEdit((x) => (x ? { ...x, label: e.target.value } : x))
+                              }
+                              maxLength={80}
+                            />
+                          </label>
+                          <div className="actions">
+                            <button
+                              type="button"
+                              className="ghost btn-with-icon"
+                              onClick={() => setCategoryEdit(null)}
+                            >
+                              <X className="btn-icon" aria-hidden />
+                              <span>Voltar</span>
+                            </button>
+                            <button type="submit" disabled={submittingCategory} className="btn-with-icon">
+                              {submittingCategory ? (
+                                <Loader2 className="btn-icon icon-spin" aria-hidden />
+                              ) : (
+                                <Check className="btn-icon" aria-hidden />
+                              )}
+                              <span>{submittingCategory ? 'Salvando…' : 'Salvar'}</span>
+                            </button>
+                          </div>
+                        </form>
+                      ) : (
+                        <>
+                          <div className="item-head">
+                            <div className="item-head-main">
+                              <strong>{c.label}</strong>
+                              {c.system ? <span className="tag">Sistema</span> : null}
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    {categoryEdit?.id !== c.id ? (
+                      <div className="item-aside">
+                        <span className="item-aside-meta muted" title={c.id}>
+                          {c.id}
+                        </span>
+                        {!c.system ? (
+                          <div className="itemActions">
+                            <button
+                              type="button"
+                              className="ghost icon-btn"
+                              aria-label={`Editar ${c.label}`}
+                              title="Editar"
+                              onClick={() => setCategoryEdit({ id: c.id, label: c.label })}
+                            >
+                              <Pencil className="btn-icon" aria-hidden />
+                            </button>
+                            <button
+                              type="button"
+                              className="danger icon-btn"
+                              aria-label={`Excluir ${c.label}`}
+                              title="Excluir"
+                              onClick={() => void onDeleteCategory(c.id)}
+                            >
+                              <Trash2 className="btn-icon" aria-hidden />
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </section>
+      ) : null}
+
+      {usingCloud && categoriesInitError ? (
+        <div className="notice notice-error" role="alert" aria-live="polite">
+          <span className="notice-text">{categoriesInitError}</span>
+          <button
+            type="button"
+            className="btn-secondary btn-with-icon"
+            disabled={!catReady}
+            onClick={() => void initCat()}
+          >
+            {!catReady ? <Loader2 className="btn-icon icon-spin" aria-hidden /> : null}
+            <span>Tentar novamente</span>
           </button>
         </div>
       ) : null}
@@ -1518,13 +1762,19 @@ function Dashboard() {
           ) : (
             <ul className="list accounts-list">
               {accounts.map((a: Account) => (
-                <li key={a.id} className="item">
+                <li
+                  key={a.id}
+                  className={
+                    a.type === 'credit_card' ? 'item item-row-card item-row-card--tall' : 'item item-row-card'
+                  }
+                >
                   <div className="itemMain">
-                    <div className="itemTop">
-                      <strong>{a.name}</strong>
-                      <span className="muted">{ACCOUNT_TYPE_LABEL[a.type]}</span>
+                    <div className="item-head">
+                      <div className="item-head-main">
+                        <strong>{a.name}</strong>
+                        {a.isDefault ? <span className="tag">Padrão</span> : null}
+                      </div>
                     </div>
-                    {a.isDefault ? <div className="tag">Padrão</div> : null}
                     {a.type === 'credit_card' ? (
                       <>
                         <div className="account-fatura-label muted">Fatura ({faturaMesLabel})</div>
@@ -1615,39 +1865,47 @@ function Dashboard() {
                       </div>
                     )}
                   </div>
-                  <div className="itemActions">
-                    <button
-                      type="button"
-                      className="ghost icon-btn"
-                      onClick={() => {
-                        void beginEditAccount(a)
-                      }}
-                      aria-label={`Editar conta ${a.name}`}
-                      title="Editar"
+                  <div className="item-aside">
+                    <span
+                      className="item-aside-meta muted"
+                      title={ACCOUNT_TYPE_LABEL[a.type]}
                     >
-                      <Pencil className="btn-icon" aria-hidden />
-                    </button>
-                    {!a.isDefault ? (
+                      {ACCOUNT_TYPE_LABEL[a.type]}
+                    </span>
+                    <div className="itemActions">
                       <button
                         type="button"
                         className="ghost icon-btn"
-                        onClick={() => void handleSetDefaultAccount(a.id)}
-                        aria-label="Definir como conta padrão"
-                        title="Conta padrão"
+                        onClick={() => {
+                          void beginEditAccount(a)
+                        }}
+                        aria-label={`Editar conta ${a.name}`}
+                        title="Editar"
                       >
-                        <Star className="btn-icon" aria-hidden />
+                        <Pencil className="btn-icon" aria-hidden />
                       </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      className="danger icon-btn"
-                      disabled={accounts.length <= 1}
-                      onClick={() => void requestArchiveAccount(a.id, a.name)}
-                      aria-label={`Arquivar conta ${a.name}`}
-                      title="Arquivar"
-                    >
-                      <Archive className="btn-icon" aria-hidden />
-                    </button>
+                      {!a.isDefault ? (
+                        <button
+                          type="button"
+                          className="ghost icon-btn"
+                          onClick={() => void handleSetDefaultAccount(a.id)}
+                          aria-label="Definir como conta padrão"
+                          title="Conta padrão"
+                        >
+                          <Star className="btn-icon" aria-hidden />
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="danger icon-btn"
+                        disabled={accounts.length <= 1}
+                        onClick={() => void requestArchiveAccount(a.id, a.name)}
+                        aria-label={`Arquivar conta ${a.name}`}
+                        title="Arquivar"
+                      >
+                        <Archive className="btn-icon" aria-hidden />
+                      </button>
+                    </div>
                   </div>
                 </li>
               ))}
@@ -1661,11 +1919,20 @@ function Dashboard() {
               </summary>
               <ul className="list accounts-list">
                 {archivedAccounts.map((a: Account) => (
-                  <li key={a.id} className="item item-archived">
+                  <li
+                    key={a.id}
+                    className={
+                      a.type === 'credit_card'
+                        ? 'item item-archived item-row-card item-row-card--tall'
+                        : 'item item-archived item-row-card'
+                    }
+                  >
                     <div className="itemMain">
-                      <div className="itemTop">
-                        <strong>{a.name}</strong>
-                        <span className="muted">{ACCOUNT_TYPE_LABEL[a.type]}</span>
+                      <div className="item-head">
+                        <div className="item-head-main">
+                          <strong>{a.name}</strong>
+                          {a.isDefault ? <span className="tag">Padrão</span> : null}
+                        </div>
                       </div>
                       {a.type === 'credit_card' ? (
                         <>
@@ -1689,27 +1956,35 @@ function Dashboard() {
                         </div>
                       )}
                     </div>
-                    <div className="itemActions">
-                      <button
-                        type="button"
-                        className="ghost icon-btn"
-                        onClick={() => {
-                          void beginEditAccount(a)
-                        }}
-                        aria-label={`Editar conta ${a.name}`}
-                        title="Editar"
+                    <div className="item-aside">
+                      <span
+                        className="item-aside-meta muted"
+                        title={ACCOUNT_TYPE_LABEL[a.type]}
                       >
-                        <Pencil className="btn-icon" aria-hidden />
-                      </button>
-                      <button
-                        type="button"
-                        className="ghost icon-btn"
-                        onClick={() => void handleUnarchiveAccount(a.id)}
-                        aria-label={`Restaurar conta ${a.name}`}
-                        title="Restaurar"
-                      >
-                        <Undo2 className="btn-icon" aria-hidden />
-                      </button>
+                        {ACCOUNT_TYPE_LABEL[a.type]}
+                      </span>
+                      <div className="itemActions">
+                        <button
+                          type="button"
+                          className="ghost icon-btn"
+                          onClick={() => {
+                            void beginEditAccount(a)
+                          }}
+                          aria-label={`Editar conta ${a.name}`}
+                          title="Editar"
+                        >
+                          <Pencil className="btn-icon" aria-hidden />
+                        </button>
+                        <button
+                          type="button"
+                          className="ghost icon-btn"
+                          onClick={() => void handleUnarchiveAccount(a.id)}
+                          aria-label={`Restaurar conta ${a.name}`}
+                          title="Restaurar"
+                        >
+                          <Undo2 className="btn-icon" aria-hidden />
+                        </button>
+                      </div>
                     </div>
                   </li>
                 ))}
@@ -1861,6 +2136,16 @@ export default function App() {
       />
       <Route
         path="/accounts"
+        element={
+          <RequireConfigured>
+            <RequireAuth>
+              <Dashboard />
+            </RequireAuth>
+          </RequireConfigured>
+        }
+      />
+      <Route
+        path="/categories"
         element={
           <RequireConfigured>
             <RequireAuth>
