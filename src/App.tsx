@@ -1,5 +1,27 @@
 import './App.css'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import {
+  Archive,
+  ArrowUp,
+  Check,
+  CreditCard,
+  CloudUpload,
+  Download,
+  Inbox,
+  LayoutDashboard,
+  Loader2,
+  LogIn,
+  LogOut,
+  Pencil,
+  Plus,
+  Receipt,
+  Star,
+  Trash2,
+  Undo2,
+  WalletCards,
+  WifiOff,
+  X,
+} from 'lucide-react'
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import {
   currentMonthYYYYMM,
@@ -184,8 +206,13 @@ function LoginPage() {
             </label>
           </div>
           <div className="row-actions">
-            <button type="submit" disabled={authBusy}>
-              {authBusy ? 'Aguarde…' : 'Entrar'}
+            <button type="submit" disabled={authBusy} className="btn-with-icon">
+              {authBusy ? (
+                <Loader2 className="btn-icon icon-spin" aria-hidden />
+              ) : (
+                <LogIn className="btn-icon" aria-hidden />
+              )}
+              <span>{authBusy ? 'Entrando…' : 'Entrar'}</span>
             </button>
           </div>
         </form>
@@ -207,13 +234,16 @@ function Dashboard() {
     isSupabaseConfigured() && authStatus === 'signedIn' && Boolean(authSession?.user)
 
   const location = useLocation()
-  const navigate = useNavigate()
   const view: 'home' | 'accounts' | 'transactions' =
     location.pathname === '/accounts'
       ? 'accounts'
       : location.pathname === '/transactions'
         ? 'transactions'
         : 'home'
+
+  const showTxFiltersSummary = view === 'home' || view === 'transactions'
+  const showAccounts = view === 'home' || view === 'accounts'
+  const showTxWorkspace = view === 'home' || view === 'transactions'
 
   const month = useStore((s) => s.transactions.filters.month)
   const typeFilter = useStore((s) => s.transactions.filters.type)
@@ -247,7 +277,30 @@ function Dashboard() {
 
   const [editingId, setEditingId] = useState<string | null>(null)
 
-  const [notice, setNotice] = useState<null | { variant: 'error' | 'success'; message: string }>(null)
+  const [notice, setNotice] = useState<null | { variant: 'error'; message: string }>(null)
+  const [toast, setToast] = useState<null | { id: number; variant: 'success' | 'error'; message: string }>(
+    null,
+  )
+  const toastSeq = useRef(0)
+  const pushToast = useCallback((variant: 'success' | 'error', message: string, durationMs?: number) => {
+    const id = ++toastSeq.current
+    setToast({ id, variant, message })
+    const ms = durationMs ?? (variant === 'error' ? 5200 : 3200)
+    window.setTimeout(() => {
+      setToast((t) => (t?.id === id ? null : t))
+    }, ms)
+  }, [])
+
+  const [online, setOnline] = useState(() =>
+    typeof navigator !== 'undefined' ? navigator.onLine : true,
+  )
+  const [showScrollTop, setShowScrollTop] = useState(false)
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null)
+  const [showInstallBar, setShowInstallBar] = useState(false)
+
+  const txFormAmountRef = useRef<HTMLInputElement>(null)
+  const accountFormNameRef = useRef<HTMLInputElement>(null)
+
   const [submittingTx, setSubmittingTx] = useState(false)
   const [submittingAccount, setSubmittingAccount] = useState(false)
   const [submittingAccountEdit, setSubmittingAccountEdit] = useState(false)
@@ -274,10 +327,48 @@ function Dashboard() {
   }, [])
 
   useEffect(() => {
-    if (notice?.variant !== 'success') return
-    const t = window.setTimeout(() => setNotice(null), 3800)
-    return () => window.clearTimeout(t)
-  }, [notice])
+    const onOn = () => setOnline(true)
+    const onOff = () => setOnline(false)
+    window.addEventListener('online', onOn)
+    window.addEventListener('offline', onOff)
+    return () => {
+      window.removeEventListener('online', onOn)
+      window.removeEventListener('offline', onOff)
+    }
+  }, [])
+
+  useEffect(() => {
+    const onScroll = () => setShowScrollTop(window.scrollY > 380)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  const installVisitsRecorded = useRef(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(display-mode: standalone)')
+    if (mq.matches) return
+
+    const onBip = (e: Event) => {
+      e.preventDefault()
+      setInstallPrompt(e as BeforeInstallPromptEvent)
+    }
+    window.addEventListener('beforeinstallprompt', onBip)
+
+    if (!installVisitsRecorded.current) {
+      installVisitsRecorded.current = true
+      if (!sessionStorage.getItem('mmc_visit_bumped')) {
+        sessionStorage.setItem('mmc_visit_bumped', '1')
+        const dismissed = localStorage.getItem('mmc_install_dismissed') === '1'
+        const prev = parseInt(localStorage.getItem('mmc_visits') ?? '0', 10)
+        const visits = Number.isFinite(prev) ? prev + 1 : 1
+        localStorage.setItem('mmc_visits', String(visits))
+        if (visits >= 3 && !dismissed) setShowInstallBar(true)
+      }
+    }
+
+    return () => window.removeEventListener('beforeinstallprompt', onBip)
+  }, [])
 
   useEffect(() => {
     if (!payInvoice) return
@@ -458,7 +549,8 @@ function Dashboard() {
         })
         setEditingId(null)
         setForm((f) => ({ ...f, amount: '', description: '', date: todayISODate() }))
-        setNotice({ variant: 'success', message: 'Saldo inicial atualizado.' })
+        pushToast('success', 'Saldo inicial atualizado.')
+        queueMicrotask(() => txFormAmountRef.current?.focus())
         return
       }
 
@@ -477,7 +569,7 @@ function Dashboard() {
             description: desc,
           })
           setEditingId(null)
-          setNotice({ variant: 'success', message: 'Transferência atualizada.' })
+          pushToast('success', 'Transferência atualizada.')
         } else {
           await add({
             type: 'transfer',
@@ -488,7 +580,7 @@ function Dashboard() {
             category: 'transfer',
             description: desc,
           })
-          setNotice({ variant: 'success', message: 'Transferência registrada.' })
+          pushToast('success', 'Transferência registrada.')
         }
         setForm((f) => ({
           ...f,
@@ -501,6 +593,7 @@ function Dashboard() {
           description: '',
           date: todayISODate(),
         }))
+        queueMicrotask(() => txFormAmountRef.current?.focus())
         return
       }
 
@@ -509,7 +602,7 @@ function Dashboard() {
 
       const accountId = form.accountId || defaultAccountId
       if (!accountId) {
-        setNotice({ variant: 'error', message: 'Selecione uma conta.' })
+        pushToast('error', 'Selecione uma conta.')
         return
       }
 
@@ -524,7 +617,7 @@ function Dashboard() {
           description: desc,
         })
         setEditingId(null)
-        setNotice({ variant: 'success', message: 'Transação atualizada.' })
+        pushToast('success', 'Transação atualizada.')
       } else {
         await add({
           type: form.type,
@@ -534,10 +627,11 @@ function Dashboard() {
           category: form.category,
           description: desc,
         })
-        setNotice({ variant: 'success', message: 'Transação adicionada.' })
+        pushToast('success', 'Transação adicionada.')
       }
 
       setForm((f) => ({ ...f, amount: '', description: '', date: todayISODate() }))
+      queueMicrotask(() => txFormAmountRef.current?.focus())
     } catch (err) {
       setNotice({ variant: 'error', message: errMessage(err) })
     } finally {
@@ -564,7 +658,8 @@ function Dashboard() {
       })
 
       setAccountForm({ name: '', type: 'bank', openingBalance: '', makeDefault: false })
-      setNotice({ variant: 'success', message: 'Conta criada.' })
+      pushToast('success', 'Conta criada.')
+      queueMicrotask(() => accountFormNameRef.current?.focus())
     } catch (err) {
       setNotice({ variant: 'error', message: errMessage(err) })
     } finally {
@@ -599,7 +694,7 @@ function Dashboard() {
       let openingBalanceCents: number | null = null
       if (raw.length > 0) {
         if (!Number.isFinite(Number(raw))) {
-          setNotice({ variant: 'error', message: 'Saldo inicial inválido.' })
+          pushToast('error', 'Saldo inicial inválido.')
           return
         }
         const cents = Math.round(Number(raw) * 100)
@@ -613,7 +708,8 @@ function Dashboard() {
         openingDate: accountEdit.openingDate,
       })
       setAccountEdit(null)
-      setNotice({ variant: 'success', message: 'Conta atualizada.' })
+      pushToast('success', 'Conta atualizada.')
+      queueMicrotask(() => accountFormNameRef.current?.focus())
     } catch (err) {
       setNotice({ variant: 'error', message: errMessage(err) })
     } finally {
@@ -643,7 +739,7 @@ function Dashboard() {
     try {
       await remove(id)
       if (editingId === id) setEditingId(null)
-      setNotice({ variant: 'success', message: 'Transação excluída.' })
+      pushToast('success', 'Transação excluída.')
     } catch (err) {
       setNotice({ variant: 'error', message: errMessage(err) })
     } finally {
@@ -660,7 +756,7 @@ function Dashboard() {
     setNotice(null)
     try {
       await archiveAccount(id)
-      setNotice({ variant: 'success', message: 'Conta arquivada.' })
+      pushToast('success', 'Conta arquivada.')
     } catch (err) {
       setNotice({ variant: 'error', message: errMessage(err) })
     }
@@ -685,7 +781,7 @@ function Dashboard() {
     setNotice(null)
     try {
       await setDefaultAccount(id)
-      setNotice({ variant: 'success', message: 'Conta padrão atualizada.' })
+      pushToast('success', 'Conta padrão atualizada.')
     } catch (err) {
       setNotice({ variant: 'error', message: errMessage(err) })
     }
@@ -695,7 +791,7 @@ function Dashboard() {
     setNotice(null)
     try {
       await unarchiveAccount(id)
-      setNotice({ variant: 'success', message: 'Conta restaurada.' })
+      pushToast('success', 'Conta restaurada.')
     } catch (err) {
       setNotice({ variant: 'error', message: errMessage(err) })
     }
@@ -741,7 +837,7 @@ function Dashboard() {
     setNotice(null)
     try {
       if (payFromId === payInvoice.cardId) {
-        setNotice({ variant: 'error', message: 'Escolha outra conta para debitar o pagamento.' })
+        pushToast('error', 'Escolha outra conta para debitar o pagamento.')
         return
       }
       await add({
@@ -754,7 +850,7 @@ function Dashboard() {
         description: `Pagamento fatura — ${nm} (${label})`,
       })
       setPayInvoice(null)
-      setNotice({ variant: 'success', message: 'Pagamento de fatura registrado.' })
+      pushToast('success', 'Pagamento de fatura registrado.')
     } catch (err) {
       setNotice({ variant: 'error', message: errMessage(err) })
     } finally {
@@ -771,13 +867,13 @@ function Dashboard() {
     setNotice(null)
     try {
       const r = await migrateLocalDexieToCloud()
-      setNotice({
-        variant: 'success',
-        message:
-          r.accounts + r.transactions === 0
-            ? 'Não havia dados locais novos para enviar.'
-            : `Enviadas ${r.accounts} conta(s) e ${r.transactions} transação(ões).`,
-      })
+      pushToast(
+        'success',
+        r.accounts + r.transactions === 0
+          ? 'Não havia dados locais novos para enviar.'
+          : `Enviadas ${r.accounts} conta(s) e ${r.transactions} transação(ões).`,
+        6500,
+      )
       await initAcc()
       await initTx({ month })
     } catch (err) {
@@ -787,8 +883,293 @@ function Dashboard() {
     }
   }
 
+  function renderTransactionFormCard() {
+    return (
+      <div className="card">
+        <h2>
+          {editing
+            ? editing.kind === 'opening_balance'
+              ? 'Saldo inicial'
+              : editing.type === 'transfer'
+                ? 'Editar transferência'
+                : 'Editar transação'
+            : 'Nova transação'}
+        </h2>
+        <form className="form" onSubmit={onSubmit}>
+          {editing?.kind !== 'opening_balance' ? (
+            <label>
+              <span>Tipo</span>
+              <select
+                value={form.type}
+                disabled={Boolean(editing)}
+                onChange={(e) => {
+                  const t = e.target.value as TransactionType
+                  setForm((f) => ({
+                    ...f,
+                    type: t,
+                    fromAccountId: t === 'transfer' ? f.fromAccountId || defaultAccountId : '',
+                    toAccountId: t === 'transfer' ? f.toAccountId : '',
+                    accountId: t !== 'transfer' ? f.accountId || defaultAccountId : f.accountId,
+                    category:
+                      t === 'transfer' ? 'transfer' : f.category === 'transfer' ? 'other' : f.category,
+                  }))
+                }}
+              >
+                <option value="expense">Despesa</option>
+                <option value="income">Receita</option>
+                <option value="transfer">Transferência</option>
+              </select>
+            </label>
+          ) : null}
+
+          <label>
+            <span>Valor (R$)</span>
+            <input
+              ref={txFormAmountRef}
+              inputMode="decimal"
+              autoComplete="off"
+              maxLength={24}
+              placeholder={editing?.kind === 'opening_balance' ? 'pode ser negativo' : 'ex.: 25,90'}
+              title="Use ponto ou vírgula para centavos"
+              value={form.amount}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  amount: e.target.value.replace(',', '.').replace(/[^\d.-]/g, ''),
+                }))
+              }
+            />
+          </label>
+
+          <label>
+            <span>Data</span>
+            <input
+              type="date"
+              value={form.date}
+              onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+            />
+          </label>
+
+          {editing?.kind !== 'opening_balance' && form.type === 'transfer' ? (
+            <>
+              <label>
+                <span>De (origem)</span>
+                <select
+                  value={form.fromAccountId || defaultAccountId}
+                  onChange={(e) => setForm((f) => ({ ...f, fromAccountId: e.target.value }))}
+                >
+                  {accounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Para (destino)</span>
+                <select
+                  value={form.toAccountId}
+                  onChange={(e) => setForm((f) => ({ ...f, toAccountId: e.target.value }))}
+                >
+                  <option value="">Selecione…</option>
+                  {accounts
+                    .filter((a) => a.id !== (form.fromAccountId || defaultAccountId))
+                    .map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            </>
+          ) : null}
+
+          {editing?.kind !== 'opening_balance' && form.type !== 'transfer' ? (
+            <>
+              <label>
+                <span>Conta</span>
+                <select
+                  value={form.accountId || defaultAccountId}
+                  onChange={(e) => setForm((f) => ({ ...f, accountId: e.target.value }))}
+                >
+                  {accounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                <span>Categoria</span>
+                <select
+                  value={form.category}
+                  onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
+                >
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
+          ) : null}
+
+          {editing?.kind === 'opening_balance' ? (
+            <label className="full">
+              <span>Conta</span>
+              <input readOnly value={accountName(editing.accountId)} />
+            </label>
+          ) : null}
+
+          <label className="full">
+            <span>Descrição (opcional)</span>
+            <input
+              value={form.description}
+              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+            />
+          </label>
+
+          <div className="actions">
+            {editing ? (
+              <>
+                <button
+                  type="button"
+                  className="ghost btn-with-icon"
+                  onClick={() => setEditingId(null)}
+                >
+                  <X className="btn-icon" aria-hidden />
+                  <span>Voltar</span>
+                </button>
+                <button type="submit" disabled={!canSubmit || submittingTx} className="btn-with-icon">
+                  {submittingTx ? (
+                    <Loader2 className="btn-icon icon-spin" aria-hidden />
+                  ) : (
+                    <Check className="btn-icon" aria-hidden />
+                  )}
+                  <span>{submittingTx ? 'Salvando…' : 'Salvar'}</span>
+                </button>
+              </>
+            ) : (
+              <button type="submit" disabled={!canSubmit || submittingTx} className="btn-with-icon">
+                {submittingTx ? (
+                  <Loader2 className="btn-icon icon-spin" aria-hidden />
+                ) : (
+                  <Plus className="btn-icon" aria-hidden />
+                )}
+                <span>{submittingTx ? 'Salvando…' : 'Incluir'}</span>
+              </button>
+            )}
+          </div>
+        </form>
+      </div>
+    )
+  }
+
+  function renderTransactionListCard() {
+    return (
+      <div className="card">
+        <h2>Transações</h2>
+        {rows.length === 0 ? (
+          <div className="empty-state">
+            <Inbox className="empty-state-icon" aria-hidden />
+            <p className="empty-state-title">Nenhuma transação neste período</p>
+            <p className="muted">
+              Ajuste mês, conta ou tipo nos filtros — ou inclua um lançamento{' '}
+              {view === 'transactions' ? 'no formulário ao lado' : 'no formulário acima'}.
+            </p>
+          </div>
+        ) : (
+          <ul className="list">
+            {rows.map((t) => (
+              <li key={t.id} className="item">
+                <div className="itemMain">
+                  <div className="itemTop">
+                    {t.kind === 'opening_balance' ? (
+                      <strong className="neutral">{signedFormatCents(t.amountCents)}</strong>
+                    ) : t.type === 'transfer' ? (
+                      <strong className="neutral">↔ {formatCents(t.amountCents)}</strong>
+                    ) : (
+                      <strong className={t.type === 'income' ? 'positive' : 'negative'}>
+                        {t.type === 'income' ? '+' : '−'} {formatCents(t.amountCents)}
+                      </strong>
+                    )}
+                    <span className="muted">{formatISODateForDisplay(t.date)}</span>
+                  </div>
+                  <div className="muted">
+                    {t.kind === 'opening_balance' ? (
+                      <>Saldo inicial • {accountName(t.accountId)}</>
+                    ) : t.type === 'transfer' ? (
+                      <>
+                        Transferência • {accountName(t.fromAccountId ?? '')} →{' '}
+                        {accountName(t.toAccountId ?? '')}
+                        {t.description ? ` • ${t.description}` : ''}
+                      </>
+                    ) : (
+                      <>
+                        {categories.find((c) => c.id === t.category)?.label ?? t.category} •{' '}
+                        {accountName(t.accountId)}
+                        {t.description ? ` • ${t.description}` : ''}
+                      </>
+                    )}
+                  </div>
+                </div>
+                <div className="itemActions">
+                  <button
+                    type="button"
+                    className="ghost icon-btn"
+                    onClick={() => setEditingId(t.id)}
+                    aria-label="Editar transação"
+                    title="Editar"
+                  >
+                    <Pencil aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    className="danger icon-btn"
+                    onClick={() => void requestDeleteTransaction(t.id)}
+                    aria-label="Excluir transação"
+                    title="Excluir"
+                  >
+                    <Trash2 aria-hidden />
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    )
+  }
+
+  const showPwaInstallChrome =
+    showInstallBar &&
+    installPrompt != null &&
+    !window.matchMedia('(display-mode: standalone)').matches
+
+  async function onPwaInstallClick() {
+    const p = installPrompt
+    if (!p) return
+    await p.prompt()
+    setInstallPrompt(null)
+    setShowInstallBar(false)
+    void p.userChoice
+  }
+
+  function dismissPwaInstall() {
+    localStorage.setItem('mmc_install_dismissed', '1')
+    setShowInstallBar(false)
+  }
+
   return (
-    <div className="container">
+    <div className={`container${!online ? ' container--offline' : ''}`}>
+      {!online ? (
+        <div className="offline-bar" role="status">
+          <WifiOff className="btn-icon" aria-hidden />
+          <span>Você está offline. O app precisa de conexão para sincronizar com a nuvem.</span>
+        </div>
+      ) : null}
       <header className="header">
         <div>
           <h1>My Money Control</h1>
@@ -800,95 +1181,105 @@ function Dashboard() {
                 : 'Dados neste aparelho (IndexedDB). Opcional: variáveis VITE_SUPABASE_* para sync.'}
           </p>
         </div>
-        <div className="pill">
-          {!authReady ? 'Sessão…' : ready ? (usingCloud ? 'Nuvem' : 'Local') : 'Carregando…'}
+        <div className="header-aside">
+          <div className="pill">
+            {!authReady ? 'Sessão…' : ready ? (usingCloud ? 'Nuvem' : 'Local') : 'Carregando…'}
+          </div>
+          {isSupabaseConfigured() && authSession?.user ? (
+            <div className="header-cloud" aria-label="Sessão na nuvem">
+              <span className="header-cloud-email muted" title={authSession.user.email ?? undefined}>
+                {authSession.user.email}
+              </span>
+              <div className="header-cloud-actions">
+                <button
+                  type="button"
+                  className="btn-secondary icon-btn icon-btn--header"
+                  disabled={
+                    migratingLocal || wasLocalDataMigratedForUser(authSession.user.id) || !ready
+                  }
+                  onClick={() => void onMigrateLocalToCloud()}
+                  aria-label={
+                    wasLocalDataMigratedForUser(authSession.user.id)
+                      ? 'Dados deste aparelho já foram enviados para a nuvem'
+                      : migratingLocal
+                        ? 'Enviando dados locais…'
+                        : 'Enviar dados locais para a nuvem'
+                  }
+                  title={
+                    wasLocalDataMigratedForUser(authSession.user.id)
+                      ? 'Já enviado deste aparelho'
+                      : migratingLocal
+                        ? 'Enviando…'
+                        : 'Enviar dados locais'
+                  }
+                >
+                  {migratingLocal ? (
+                    <Loader2 className="btn-icon icon-spin" aria-hidden />
+                  ) : (
+                    <CloudUpload className="btn-icon" aria-hidden />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary icon-btn icon-btn--header"
+                  onClick={() => void signOut()}
+                  aria-label="Sair"
+                  title="Sair"
+                >
+                  <LogOut className="btn-icon" aria-hidden />
+                </button>
+              </div>
+            </div>
+          ) : null}
         </div>
       </header>
 
       <nav className="top-nav" aria-label="Navegação principal">
         <NavLink to="/" end className={({ isActive }) => (isActive ? 'top-nav-link is-active' : 'top-nav-link')}>
-          Início
+          <LayoutDashboard className="top-nav-icon" aria-hidden />
+          <span>Início</span>
         </NavLink>
         <NavLink
           to="/transactions"
           className={({ isActive }) => (isActive ? 'top-nav-link is-active' : 'top-nav-link')}
         >
-          Transações
+          <Receipt className="top-nav-icon" aria-hidden />
+          <span>Transações</span>
         </NavLink>
         <NavLink
           to="/accounts"
           className={({ isActive }) => (isActive ? 'top-nav-link is-active' : 'top-nav-link')}
         >
-          Contas
+          <WalletCards className="top-nav-icon" aria-hidden />
+          <span>Contas</span>
         </NavLink>
       </nav>
 
-      {isSupabaseConfigured() ? (
-        <section className="card cloud-panel" aria-label="Conta na nuvem">
-          <h2>Nuvem</h2>
-          {authStatus === 'loading' ? (
-            <p className="muted">Verificando sessão…</p>
-          ) : authSession?.user ? (
-            <div className="cloud-panel-signedin">
-              <p className="muted">
-                Conectado como <strong>{authSession.user.email}</strong>
-              </p>
-              <div className="row-actions">
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  disabled={
-                    migratingLocal || wasLocalDataMigratedForUser(authSession.user.id) || !ready
-                  }
-                  onClick={() => void onMigrateLocalToCloud()}
-                >
-                  {wasLocalDataMigratedForUser(authSession.user.id)
-                    ? 'Dados locais já enviados deste aparelho'
-                    : migratingLocal
-                      ? 'Enviando…'
-                      : 'Enviar dados deste aparelho para a nuvem'}
-                </button>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => void signOut()}
-                >
-                  Sair
-                </button>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => navigate('/login', { replace: true })}
-                >
-                  Trocar de conta
-                </button>
-              </div>
-            </div>
-          ) : null}
-        </section>
+      {view !== 'home' ? (
+        <h2 className="page-title">{view === 'transactions' ? 'Transações' : 'Contas'}</h2>
       ) : null}
 
       {notice ? (
         <div
-          className={`notice notice-${notice.variant}`}
-          role={notice.variant === 'error' ? 'alert' : 'status'}
+          className="notice notice-error"
+          role="alert"
           aria-live="polite"
         >
           <span className="notice-text">{notice.message}</span>
           <button
             type="button"
-            className="notice-dismiss"
+            className="notice-dismiss icon-btn"
             onClick={() => setNotice(null)}
             aria-label="Fechar aviso"
           >
-            ×
+            <X className="btn-icon" aria-hidden />
           </button>
         </div>
       ) : null}
 
-      {view !== 'accounts' ? (
+      {showTxFiltersSummary ? (
         <section className="grid">
-          <div className="card">
+          <div className="card sticky-filters-card">
             <h2>Filtros</h2>
             <p className="period-label muted">Período: {formatMonthYearForDisplay(month)}</p>
             <div className="row row-4">
@@ -973,8 +1364,8 @@ function Dashboard() {
         </section>
       ) : null}
 
-      {view === 'accounts' ? (
-      <section className="grid">
+      {showAccounts ? (
+      <section className={showTxWorkspace ? 'grid' : 'grid single'}>
         <div className="card">
           <h2>Contas</h2>
           <p className="hint accounts-hint">
@@ -986,7 +1377,10 @@ function Dashboard() {
               <label className="full">
                 <span>Nome</span>
                 <input
+                  ref={accountFormNameRef}
                   placeholder="ex.: Bradesco"
+                  autoComplete="off"
+                  maxLength={120}
                   value={accountForm.name}
                   onChange={(e) => setAccountForm((f) => ({ ...f, name: e.target.value }))}
                 />
@@ -1023,8 +1417,17 @@ function Dashboard() {
                 <span>Definir como conta padrão</span>
               </label>
               <div className="actions">
-                <button type="submit" disabled={!canSubmitAccount || submittingAccount}>
-                  {submittingAccount ? 'Salvando…' : 'Adicionar conta'}
+                <button
+                  type="submit"
+                  disabled={!canSubmitAccount || submittingAccount}
+                  className="btn-with-icon"
+                >
+                  {submittingAccount ? (
+                    <Loader2 className="btn-icon icon-spin" aria-hidden />
+                  ) : (
+                    <Plus className="btn-icon" aria-hidden />
+                  )}
+                  <span>{submittingAccount ? 'Salvando…' : 'Incluir conta'}</span>
                 </button>
               </div>
             </form>
@@ -1080,20 +1483,38 @@ function Dashboard() {
                 />
               </label>
               <div className="actions">
-                <button type="button" className="ghost" onClick={() => setAccountEdit(null)}>
-                  Cancelar
+                <button
+                  type="button"
+                  className="ghost btn-with-icon"
+                  onClick={() => setAccountEdit(null)}
+                >
+                  <X className="btn-icon" aria-hidden />
+                  <span>Voltar</span>
                 </button>
-                <button type="submit" disabled={!canSubmitAccountEdit || submittingAccountEdit}>
-                  {submittingAccountEdit ? 'Salvando…' : 'Salvar'}
+                <button
+                  type="submit"
+                  disabled={!canSubmitAccountEdit || submittingAccountEdit}
+                  className="btn-with-icon"
+                >
+                  {submittingAccountEdit ? (
+                    <Loader2 className="btn-icon icon-spin" aria-hidden />
+                  ) : (
+                    <Check className="btn-icon" aria-hidden />
+                  )}
+                  <span>{submittingAccountEdit ? 'Salvando…' : 'Salvar'}</span>
                 </button>
               </div>
             </form>
           ) : null}
           {accounts.length === 0 ? (
-            <p className="muted">
-              Nenhuma conta ainda. Cadastre uma acima (banco, carteira ou cartão) para começar a lançar
-              transações.
-            </p>
+            <div className="empty-state">
+              <WalletCards className="empty-state-icon" aria-hidden />
+              <p className="empty-state-title">Nenhuma conta cadastrada</p>
+              <p className="muted">
+                Crie uma conta (banco, carteira ou cartão) no formulário acima para começar a lançar
+                transações.
+              </p>
+            </div>
           ) : (
             <ul className="list accounts-list">
               {accounts.map((a: Account) => (
@@ -1149,21 +1570,36 @@ function Dashboard() {
                               />
                             </label>
                             <div className="pay-invoice-actions">
-                              <button type="button" className="ghost" onClick={() => setPayInvoice(null)}>
-                                Cancelar
+                              <button
+                                type="button"
+                                className="ghost btn-with-icon"
+                                onClick={() => setPayInvoice(null)}
+                              >
+                                <X className="btn-icon" aria-hidden />
+                                <span>Voltar</span>
                               </button>
-                              <button type="submit" disabled={!canSubmitPayInvoice || submittingPayInvoice}>
-                                {submittingPayInvoice ? 'Registrando…' : 'Registrar pagamento'}
+                              <button
+                                type="submit"
+                                disabled={!canSubmitPayInvoice || submittingPayInvoice}
+                                className="btn-with-icon"
+                              >
+                                {submittingPayInvoice ? (
+                                  <Loader2 className="btn-icon icon-spin" aria-hidden />
+                                ) : (
+                                  <Check className="btn-icon" aria-hidden />
+                                )}
+                                <span>{submittingPayInvoice ? 'Registrando…' : 'Registrar'}</span>
                               </button>
                             </div>
                           </form>
                         ) : (
                           <button
                             type="button"
-                            className="ghost pay-invoice-open"
+                            className="ghost pay-invoice-open btn-with-icon"
                             onClick={() => openPayInvoice(a.id)}
                           >
-                            Pagar fatura
+                            <CreditCard className="btn-icon" aria-hidden />
+                            <span>Pagar fatura</span>
                           </button>
                         )}
                       </>
@@ -1182,29 +1618,35 @@ function Dashboard() {
                   <div className="itemActions">
                     <button
                       type="button"
-                      className="ghost"
+                      className="ghost icon-btn"
                       onClick={() => {
                         void beginEditAccount(a)
                       }}
+                      aria-label={`Editar conta ${a.name}`}
+                      title="Editar"
                     >
-                      Editar
+                      <Pencil className="btn-icon" aria-hidden />
                     </button>
                     {!a.isDefault ? (
                       <button
                         type="button"
-                        className="ghost"
+                        className="ghost icon-btn"
                         onClick={() => void handleSetDefaultAccount(a.id)}
+                        aria-label="Definir como conta padrão"
+                        title="Conta padrão"
                       >
-                        Padrão
+                        <Star className="btn-icon" aria-hidden />
                       </button>
                     ) : null}
                     <button
                       type="button"
-                      className="danger"
+                      className="danger icon-btn"
                       disabled={accounts.length <= 1}
                       onClick={() => void requestArchiveAccount(a.id, a.name)}
+                      aria-label={`Arquivar conta ${a.name}`}
+                      title="Arquivar"
                     >
-                      Arquivar
+                      <Archive className="btn-icon" aria-hidden />
                     </button>
                   </div>
                 </li>
@@ -1250,19 +1692,23 @@ function Dashboard() {
                     <div className="itemActions">
                       <button
                         type="button"
-                        className="ghost"
+                        className="ghost icon-btn"
                         onClick={() => {
                           void beginEditAccount(a)
                         }}
+                        aria-label={`Editar conta ${a.name}`}
+                        title="Editar"
                       >
-                        Editar
+                        <Pencil className="btn-icon" aria-hidden />
                       </button>
                       <button
                         type="button"
-                        className="ghost"
+                        className="ghost icon-btn"
                         onClick={() => void handleUnarchiveAccount(a.id)}
+                        aria-label={`Restaurar conta ${a.name}`}
+                        title="Restaurar"
                       >
-                        Restaurar
+                        <Undo2 className="btn-icon" aria-hidden />
                       </button>
                     </div>
                   </li>
@@ -1272,226 +1718,54 @@ function Dashboard() {
           ) : null}
         </div>
 
-        <div className="card">
-          <h2>
-            {editing
-              ? editing.kind === 'opening_balance'
-                ? 'Saldo inicial'
-                : editing.type === 'transfer'
-                  ? 'Editar transferência'
-                  : 'Editar transação'
-              : 'Nova transação'}
-          </h2>
-          <form className="form" onSubmit={onSubmit}>
-            {editing?.kind !== 'opening_balance' ? (
-              <label>
-                <span>Tipo</span>
-                <select
-                  value={form.type}
-                  disabled={Boolean(editing)}
-                  onChange={(e) => {
-                    const t = e.target.value as TransactionType
-                    setForm((f) => ({
-                      ...f,
-                      type: t,
-                      fromAccountId: t === 'transfer' ? f.fromAccountId || defaultAccountId : '',
-                      toAccountId: t === 'transfer' ? f.toAccountId : '',
-                      accountId: t !== 'transfer' ? f.accountId || defaultAccountId : f.accountId,
-                      category:
-                        t === 'transfer' ? 'transfer' : f.category === 'transfer' ? 'other' : f.category,
-                    }))
-                  }}
-                >
-                  <option value="expense">Despesa</option>
-                  <option value="income">Receita</option>
-                  <option value="transfer">Transferência</option>
-                </select>
-              </label>
-            ) : null}
-
-            <label>
-              <span>Valor (R$)</span>
-              <input
-                inputMode="decimal"
-                placeholder={editing?.kind === 'opening_balance' ? 'pode ser negativo' : 'ex.: 25,90'}
-                value={form.amount}
-                onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value.replace(',', '.') }))}
-              />
-            </label>
-
-            <label>
-              <span>Data</span>
-              <input
-                type="date"
-                value={form.date}
-                onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-              />
-            </label>
-
-            {editing?.kind !== 'opening_balance' && form.type === 'transfer' ? (
-              <>
-                <label>
-                  <span>De (origem)</span>
-                  <select
-                    value={form.fromAccountId || defaultAccountId}
-                    onChange={(e) => setForm((f) => ({ ...f, fromAccountId: e.target.value }))}
-                  >
-                    {accounts.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  <span>Para (destino)</span>
-                  <select
-                    value={form.toAccountId}
-                    onChange={(e) => setForm((f) => ({ ...f, toAccountId: e.target.value }))}
-                  >
-                    <option value="">Selecione…</option>
-                    {accounts
-                      .filter((a) => a.id !== (form.fromAccountId || defaultAccountId))
-                      .map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.name}
-                        </option>
-                      ))}
-                  </select>
-                </label>
-              </>
-            ) : null}
-
-            {editing?.kind !== 'opening_balance' && form.type !== 'transfer' ? (
-              <>
-                <label>
-                  <span>Conta</span>
-                  <select
-                    value={form.accountId || defaultAccountId}
-                    onChange={(e) => setForm((f) => ({ ...f, accountId: e.target.value }))}
-                  >
-                    {accounts.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label>
-                  <span>Categoria</span>
-                  <select
-                    value={form.category}
-                    onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-                  >
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </>
-            ) : null}
-
-            {editing?.kind === 'opening_balance' ? (
-              <label className="full">
-                <span>Conta</span>
-                <input readOnly value={accountName(editing.accountId)} />
-              </label>
-            ) : null}
-
-            <label className="full">
-              <span>Descrição (opcional)</span>
-              <input
-                value={form.description}
-                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-              />
-            </label>
-
-            <div className="actions">
-              {editing ? (
-                <>
-                  <button type="button" className="ghost" onClick={() => setEditingId(null)}>
-                    Cancelar
-                  </button>
-                  <button type="submit" disabled={!canSubmit || submittingTx}>
-                    {submittingTx ? 'Salvando…' : 'Salvar'}
-                  </button>
-                </>
-              ) : (
-                <button type="submit" disabled={!canSubmit || submittingTx}>
-                  {submittingTx ? 'Salvando…' : 'Adicionar'}
-                </button>
-              )}
-            </div>
-          </form>
-        </div>
+        {showTxWorkspace ? renderTransactionFormCard() : null}
       </section>
       ) : null}
 
-      {view !== 'accounts' ? (
-      <section className="grid single">
-        <div className="card">
-          <h2>Transações</h2>
-          {rows.length === 0 ? (
-            <p className="muted">
-              Nenhuma transação com os filtros atuais. Ajuste mês, conta ou tipo — ou cadastre uma nova
-              transação ao lado.
-            </p>
-          ) : (
-            <ul className="list">
-              {rows.map((t) => (
-                <li key={t.id} className="item">
-                  <div className="itemMain">
-                    <div className="itemTop">
-                      {t.kind === 'opening_balance' ? (
-                        <strong className="neutral">{signedFormatCents(t.amountCents)}</strong>
-                      ) : t.type === 'transfer' ? (
-                        <strong className="neutral">↔ {formatCents(t.amountCents)}</strong>
-                      ) : (
-                        <strong className={t.type === 'income' ? 'positive' : 'negative'}>
-                          {t.type === 'income' ? '+' : '−'} {formatCents(t.amountCents)}
-                        </strong>
-                      )}
-                      <span className="muted">{formatISODateForDisplay(t.date)}</span>
-                    </div>
-                    <div className="muted">
-                      {t.kind === 'opening_balance' ? (
-                        <>Saldo inicial • {accountName(t.accountId)}</>
-                      ) : t.type === 'transfer' ? (
-                        <>
-                          Transferência • {accountName(t.fromAccountId ?? '')} →{' '}
-                          {accountName(t.toAccountId ?? '')}
-                          {t.description ? ` • ${t.description}` : ''}
-                        </>
-                      ) : (
-                        <>
-                          {categories.find((c) => c.id === t.category)?.label ?? t.category} •{' '}
-                          {accountName(t.accountId)}
-                          {t.description ? ` • ${t.description}` : ''}
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  <div className="itemActions">
-                    <button type="button" className="ghost" onClick={() => setEditingId(t.id)}>
-                      Editar
-                    </button>
-                    <button
-                      type="button"
-                      className="danger"
-                      onClick={() => void requestDeleteTransaction(t.id)}
-                    >
-                      Excluir
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
+      {!showAccounts && showTxWorkspace ? (
+        <section className="grid">
+          {renderTransactionFormCard()}
+          {renderTransactionListCard()}
+        </section>
+      ) : null}
+
+      {showAccounts && showTxWorkspace ? (
+        <section className="grid single">{renderTransactionListCard()}</section>
+      ) : null}
+
+      {toast ? (
+        <div className="toast-stack" role="status" aria-live="polite">
+          <div className={`toast toast-${toast.variant}`}>{toast.message}</div>
         </div>
-      </section>
+      ) : null}
+
+      {showScrollTop ? (
+        <button
+          type="button"
+          className="scroll-top-btn"
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          aria-label="Voltar ao topo"
+          title="Topo"
+          style={showPwaInstallChrome ? { bottom: '5.75rem' } : undefined}
+        >
+          <ArrowUp className="btn-icon" aria-hidden />
+        </button>
+      ) : null}
+
+      {showPwaInstallChrome ? (
+        <div className="pwa-install-bar" role="region" aria-label="Instalar aplicativo">
+          <p>Adicione à tela inicial para abrir mais rápido, como um app.</p>
+          <div className="pwa-install-actions">
+            <button type="button" className="ghost btn-with-icon" onClick={dismissPwaInstall}>
+              <X className="btn-icon" aria-hidden />
+              <span>Agora não</span>
+            </button>
+            <button type="button" className="btn-with-icon" onClick={() => void onPwaInstallClick()}>
+              <Download className="btn-icon" aria-hidden />
+              <span>Instalar</span>
+            </button>
+          </div>
+        </div>
       ) : null}
 
       {confirmDialog ? (
@@ -1521,15 +1795,30 @@ function Dashboard() {
                 : `Arquivar a conta “${confirmDialog.displayName}”? Você pode restaurá-la depois em contas arquivadas.`}
             </p>
             <div className="modal-actions">
-              <button ref={confirmCancelRef} type="button" className="ghost" onClick={dismissConfirmDialog}>
-                Cancelar
+              <button
+                ref={confirmCancelRef}
+                type="button"
+                className="ghost btn-with-icon"
+                onClick={dismissConfirmDialog}
+              >
+                <X className="btn-icon" aria-hidden />
+                <span>Voltar</span>
               </button>
               <button
                 type="button"
-                className={confirmDialog.kind === 'delete-transaction' ? 'danger' : undefined}
+                className={
+                  confirmDialog.kind === 'delete-transaction'
+                    ? 'danger btn-with-icon'
+                    : 'btn-with-icon'
+                }
                 onClick={() => void handleConfirmDialogPrimary()}
               >
-                {confirmDialog.kind === 'delete-transaction' ? 'Excluir' : 'Arquivar'}
+                {confirmDialog.kind === 'delete-transaction' ? (
+                  <Trash2 className="btn-icon" aria-hidden />
+                ) : (
+                  <Archive className="btn-icon" aria-hidden />
+                )}
+                <span>{confirmDialog.kind === 'delete-transaction' ? 'Excluir' : 'Arquivar'}</span>
               </button>
             </div>
           </div>

@@ -9,10 +9,28 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  /* Type scale */
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 14px;
+  --text-md: 16px;
+  --text-lg: 20px;
+  --text-xl: 28px;
+
+  /* Spacing */
+  --space-1: 8px;
+  --space-2: 12px;
+  --space-3: 16px;
+  --space-4: 24px;
+
+  /* Focus ring */
+  --focus-ring: 0 0 0 3px rgba(120, 163, 255, 0.45);
 }
 
 body {
   margin: 0;
+  font-size: var(--text-base);
 }
 
 #root {
@@ -20,10 +38,36 @@ body {
 }
 
 h1 {
-  font-size: 28px;
+  font-size: var(--text-xl);
+  font-weight: 700;
   margin: 0;
+  letter-spacing: -0.02em;
 }
 
 h2 {
   margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+h3 {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+/* Keyboard focus visibility (forms refined in App.css) */
+:focus {
+  outline: none;
+}
+
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible) {
+  box-shadow: none;
 }
