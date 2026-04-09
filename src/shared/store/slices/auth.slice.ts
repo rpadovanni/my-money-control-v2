@@ -126,7 +126,7 @@ export const createAuthSlice: StateCreator<StoreState, [], [], AuthSlice> = (set
     const client = getSupabaseClient()
     if (!client) throw new Error('Supabase não está configurado (variáveis de ambiente).')
     set((s) => ({ ...s, auth: { ...s.auth, authError: null, status: 'loading' } }))
-    const { error } = await client.auth.signInWithPassword({
+    const { data, error } = await client.auth.signInWithPassword({
       email: email.trim().toLowerCase(),
       password,
     })
@@ -134,6 +134,17 @@ export const createAuthSlice: StateCreator<StoreState, [], [], AuthSlice> = (set
       set((s) => ({ ...s, auth: { ...s.auth, authError: error.message, status: 'signedOut' } }))
       throw error
     }
+    const session = data.session
+    setAuthSession(session)
+    set((s) => ({
+      ...s,
+      auth: {
+        ...s.auth,
+        session,
+        status: session ? 'signedIn' : 'signedOut',
+        authError: null,
+      },
+    }))
   },
 
   signUpWithPassword: async (email, password) => {

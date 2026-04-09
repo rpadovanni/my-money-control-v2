@@ -197,7 +197,6 @@ function LoginPage() {
 function Dashboard() {
   const authStatus = useStore((s) => s.auth.status)
   const authSession = useStore((s) => s.auth.session)
-  const initAuth = useStore((s) => s.initAuth)
   const signOut = useStore((s) => s.signOut)
 
   const txReady = useStore((s) => s.transactions.ready)
@@ -341,10 +340,6 @@ function Dashboard() {
   }>(null)
 
   const initDataRef = useRef<string | null>(null)
-
-  useEffect(() => {
-    void initAuth()
-  }, [initAuth])
 
   useEffect(() => {
     if (authStatus !== 'signedIn' && authStatus !== 'signedOut') return
