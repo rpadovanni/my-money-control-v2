@@ -46,4 +46,9 @@ export const transactionsRepo = {
       ? remoteTransactionsRepo.getCreditCardPayablesForMonth(monthYYYYMM)
       : localTransactionsRepo.getCreditCardPayablesForMonth(monthYYYYMM)
   },
+  countByCategory(categoryId: string): Promise<number> {
+    return isRemoteActive()
+      ? remoteTransactionsRepo.countByCategory(categoryId)
+      : localTransactionsRepo.countByCategory(categoryId)
+  },
 }

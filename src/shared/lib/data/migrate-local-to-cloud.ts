@@ -24,8 +24,9 @@ export async function migrateLocalDexieToCloud(): Promise<{ accounts: number; tr
 
   const accounts = await db.accounts.toArray()
   const transactions = await db.transactions.toArray()
+  const categories = await db.categories.toArray()
 
-  if (accounts.length === 0 && transactions.length === 0) {
+  if (accounts.length === 0 && transactions.length === 0 && categories.length === 0) {
     return { accounts: 0, transactions: 0 }
   }
 
@@ -39,6 +40,19 @@ export async function migrateLocalDexieToCloud(): Promise<{ accounts: number; tr
   if (txRows.length > 0) {
     const { error: tErr } = await client.from('transactions').upsert(txRows, { onConflict: 'id' })
     if (tErr) throw new Error(tErr.message)
+  }
+
+  if (categories.length > 0) {
+    const catRows = categories.map((c) => ({
+      user_id: userId,
+      id: c.id,
+      label: c.label,
+      system: c.system,
+      created_at: c.createdAt,
+      updated_at: c.updatedAt,
+    }))
+    const { error: cErr } = await client.from('categories').upsert(catRows, { onConflict: 'user_id,id' })
+    if (cErr) throw new Error(cErr.message)
   }
 
   markLocalDataMigratedForUser(userId)

@@ -17,8 +17,9 @@ export type TransactionCategoryId =
   | 'other'
 
 export interface TransactionCategory {
-  id: TransactionCategoryId
+  id: string
   label: string
+  system?: boolean
 }
 
 export interface Transaction {

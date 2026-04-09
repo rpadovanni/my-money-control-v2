@@ -1,11 +1,13 @@
 import Dexie, { type Table } from 'dexie'
 import { nowTimestampISO } from '../dates'
 import type { Account } from '../../store/types/accounts'
+import type { CategoryRecord } from '../../store/types/categories'
 import type { Transaction } from '../../store/types/transactions'
 
 export class AppDB extends Dexie {
   transactions!: Table<Transaction, string>
   accounts!: Table<Account, string>
+  categories!: Table<CategoryRecord, string>
 
   constructor() {
     super('my-money-control')
@@ -50,6 +52,13 @@ export class AppDB extends Dexie {
       transactions:
         'id, date, type, kind, category, accountId, fromAccountId, toAccountId, createdAt, updatedAt',
       accounts: 'id, isDefault, isArchived, createdAt, updatedAt',
+    })
+
+    this.version(4).stores({
+      transactions:
+        'id, date, type, kind, category, accountId, fromAccountId, toAccountId, createdAt, updatedAt',
+      accounts: 'id, isDefault, isArchived, createdAt, updatedAt',
+      categories: 'id, label, system, createdAt, updatedAt',
     })
   }
 }

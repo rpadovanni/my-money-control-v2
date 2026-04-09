@@ -5,7 +5,6 @@ import type { StoreState } from '../store-state'
 import type {
   NewTransactionInput,
   Transaction,
-  TransactionCategory,
   TransactionsFilters,
   TransactionType,
   UpdateTransactionInput,
@@ -14,7 +13,6 @@ import type {
 export interface TransactionsSliceState {
   ready: boolean
   items: Transaction[]
-  categories: TransactionCategory[]
   filters: TransactionsFilters
 }
 
@@ -33,21 +31,6 @@ export type TransactionsSlice = {
   transactions: TransactionsSliceState
 } & TransactionsSliceActions
 
-const DEFAULT_CATEGORIES: TransactionCategory[] = [
-  { id: 'salary', label: 'Salário' },
-  { id: 'freelance', label: 'Freelance' },
-  { id: 'food', label: 'Alimentação' },
-  { id: 'transport', label: 'Transporte' },
-  { id: 'shopping', label: 'Compras' },
-  { id: 'bills', label: 'Contas' },
-  { id: 'health', label: 'Saúde' },
-  { id: 'education', label: 'Educação' },
-  { id: 'entertainment', label: 'Lazer' },
-  { id: 'travel', label: 'Viagem' },
-  { id: 'transfer', label: 'Transferência' },
-  { id: 'other', label: 'Outros' },
-]
-
 async function load(set: (fn: (s: StoreState) => StoreState) => void, get: () => StoreState) {
   const items = await transactionsRepo.list(get().transactions.filters)
   set((s) => ({ ...s, transactions: { ...s.transactions, items, ready: true } }))
@@ -65,7 +48,6 @@ export const createTransactionsSlice: StateCreator<StoreState, [], [], Transacti
   transactions: {
     ready: false,
     items: [],
-    categories: DEFAULT_CATEGORIES,
     filters: { month: currentMonthYYYYMM(), type: 'all', category: null, accountId: 'all' },
   },
 

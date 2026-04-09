@@ -274,4 +274,15 @@ export const remoteTransactionsRepo = {
     }
     return out
   },
+
+  async countByCategory(categoryId: string): Promise<number> {
+    const { client, userId } = requireRemote()
+    const { count, error } = await client
+      .from('transactions')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('category', categoryId)
+    if (error) throw new Error(error.message)
+    return count ?? 0
+  },
 }

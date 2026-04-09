@@ -123,6 +123,10 @@ export class TransactionsRepository {
     await db.transactions.delete(id)
   }
 
+  async countByCategory(categoryId: string): Promise<number> {
+    return await db.transactions.where('category').equals(categoryId).count()
+  }
+
   async getOpeningBalanceForAccount(accountId: string): Promise<Transaction | null> {
     const rows = await db.transactions
       .filter((t) => t.accountId === accountId && t.kind === 'opening_balance')
