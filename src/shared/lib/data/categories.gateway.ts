@@ -1,7 +1,7 @@
 import { isRemoteActive } from './data-source'
 import { localCategoriesRepo } from '../db/categories.repo'
 import { remoteCategoriesRepo } from './remote-categories.repo'
-import type { CategoryRecord } from '../../store/types/categories'
+import type { CategoryRecord } from '../../../features/categories/types/category'
 
 export const categoriesRepo = {
   list(): Promise<CategoryRecord[]> {

@@ -1,7 +1,7 @@
-import type { StateCreator } from 'zustand'
-import { currentMonthYYYYMM, todayISODate } from '../../lib/dates'
-import { accountsRepo } from '../../lib/data/accounts.gateway'
-import { transactionsRepo } from '../../lib/data/transactions.gateway'
+import { create } from 'zustand'
+import { currentMonthYYYYMM, todayISODate } from '../../../shared/lib/dates'
+import { accountsRepo } from '../../../shared/lib/data/accounts.gateway'
+import { transactionsRepo } from '../../../shared/lib/data/transactions.gateway'
 import type {
   Account,
   AccountOpeningSnapshot,
@@ -9,7 +9,6 @@ import type {
   UpdateAccountDetailsInput,
   UpdateAccountInput,
 } from '../types/accounts'
-import type { StoreState } from '../store-state'
 
 export interface AccountsSliceState {
   ready: boolean
@@ -39,11 +38,32 @@ export interface AccountsSliceActions {
   refreshAccountBalances: () => Promise<void>
 }
 
-export type AccountsSlice = {
-  accounts: AccountsSliceState
-} & AccountsSliceActions
+export type AccountsStore = { accounts: AccountsSliceState } & AccountsSliceActions
 
-async function loadAccounts(set: (fn: (s: StoreState) => StoreState) => void) {
+export interface AccountsCoordinators {
+  reloadTransactions: (opts?: { month?: string }) => Promise<void>
+  getTransactionMonth: () => string
+  getTransactionAccountFilter: () => string | 'all'
+  setTransactionAccountFilter: (accountId: string | 'all') => Promise<void>
+}
+
+const noopCoords: AccountsCoordinators = {
+  reloadTransactions: async () => {},
+  getTransactionMonth: () => currentMonthYYYYMM(),
+  getTransactionAccountFilter: () => 'all',
+  setTransactionAccountFilter: async () => {},
+}
+
+let accountsCoordinators: AccountsCoordinators = noopCoords
+
+/** Ligado em `app/wire-finance-stores.ts` para sincronizar filtros/lista de transações. */
+export function setAccountsCoordinators(coords: AccountsCoordinators) {
+  accountsCoordinators = coords
+}
+
+async function loadAccounts(
+  set: (fn: (s: AccountsStore) => Partial<AccountsStore> | AccountsStore) => void,
+) {
   const month = currentMonthYYYYMM()
   const [items, archivedItems, balancesByAccountId, creditCardPayableByAccountId] = await Promise.all([
     accountsRepo.list(),
@@ -52,7 +72,6 @@ async function loadAccounts(set: (fn: (s: StoreState) => StoreState) => void) {
     transactionsRepo.getCreditCardPayablesForMonth(month),
   ])
   set((s) => ({
-    ...s,
     accounts: {
       ...s.accounts,
       items,
@@ -64,7 +83,7 @@ async function loadAccounts(set: (fn: (s: StoreState) => StoreState) => void) {
   }))
 }
 
-export const createAccountsSlice: StateCreator<StoreState, [], [], AccountsSlice> = (set, get) => ({
+export const useAccountsStore = create<AccountsStore>()((set) => ({
   accounts: {
     ready: false,
     items: [],
@@ -74,7 +93,7 @@ export const createAccountsSlice: StateCreator<StoreState, [], [], AccountsSlice
   },
 
   accountsInit: async () => {
-    set((s) => ({ ...s, accounts: { ...s.accounts, ready: false } }))
+    set((s) => ({ accounts: { ...s.accounts, ready: false } }))
     await loadAccounts(set)
   },
 
@@ -100,7 +119,7 @@ export const createAccountsSlice: StateCreator<StoreState, [], [], AccountsSlice
     }
 
     await loadAccounts(set)
-    await get().transactionsInit({ month: get().transactions.filters.month })
+    await accountsCoordinators.reloadTransactions({ month: accountsCoordinators.getTransactionMonth() })
   },
 
   updateAccount: async (id, patch) => {
@@ -128,11 +147,11 @@ export const createAccountsSlice: StateCreator<StoreState, [], [], AccountsSlice
     await accountsRepo.archive(id)
     await loadAccounts(set)
 
-    const filterId = get().transactions.filters.accountId
+    const filterId = accountsCoordinators.getTransactionAccountFilter()
     if (filterId !== 'all' && filterId === id) {
-      await get().setTransactionsAccount('all')
+      await accountsCoordinators.setTransactionAccountFilter('all')
     } else {
-      await get().transactionsInit({ month: get().transactions.filters.month })
+      await accountsCoordinators.reloadTransactions({ month: accountsCoordinators.getTransactionMonth() })
     }
   },
 
@@ -142,7 +161,7 @@ export const createAccountsSlice: StateCreator<StoreState, [], [], AccountsSlice
 
     await accountsRepo.unarchive(id)
     await loadAccounts(set)
-    await get().transactionsInit({ month: get().transactions.filters.month })
+    await accountsCoordinators.reloadTransactions({ month: accountsCoordinators.getTransactionMonth() })
   },
 
   getAccountOpeningForEdit: async (accountId) => {
@@ -160,7 +179,7 @@ export const createAccountsSlice: StateCreator<StoreState, [], [], AccountsSlice
     await accountsRepo.update(id, { name: input.name, type: input.type })
     await transactionsRepo.setOpeningBalanceForAccount(id, input.openingBalanceCents, input.openingDate)
     await loadAccounts(set)
-    await get().transactionsInit({ month: get().transactions.filters.month })
+    await accountsCoordinators.reloadTransactions({ month: accountsCoordinators.getTransactionMonth() })
   },
 
   refreshAccountBalances: async () => {
@@ -170,8 +189,7 @@ export const createAccountsSlice: StateCreator<StoreState, [], [], AccountsSlice
       transactionsRepo.getCreditCardPayablesForMonth(month),
     ])
     set((s) => ({
-      ...s,
       accounts: { ...s.accounts, balancesByAccountId, creditCardPayableByAccountId },
     }))
   },
-})
+}))

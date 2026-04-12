@@ -34,4 +34,3 @@ export interface AccountOpeningSnapshot {
   amountCents: number | null
   date: string
 }
-

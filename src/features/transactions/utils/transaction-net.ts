@@ -1,4 +1,4 @@
-import type { Transaction } from '../store/types/transactions'
+import type { Transaction } from '../types/transactions'
 
 /** Efeito no saldo de cada conta (mapa agregado). */
 export function applyTransactionToBalanceMap(t: Transaction, out: Record<string, number>): void {

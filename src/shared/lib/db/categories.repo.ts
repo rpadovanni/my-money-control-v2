@@ -1,7 +1,7 @@
 import { nowTimestampISO } from '../dates'
 import { db } from './dexie'
 import { DEFAULT_CATEGORY_SEEDS } from './category-seed'
-import type { CategoryRecord } from '../../store/types/categories'
+import type { CategoryRecord } from '../../../features/categories/types/category'
 
 function slugFromLabel(label: string): string {
   const n = label

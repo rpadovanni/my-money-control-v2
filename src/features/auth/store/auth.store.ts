@@ -1,10 +1,14 @@
-import type { StateCreator } from 'zustand'
+import { create } from 'zustand'
 import type { Session } from '@supabase/supabase-js'
-import { setAuthSession } from '../../lib/data/auth-session'
-import { getSupabaseClient } from '../../lib/supabase/client'
-import type { StoreState } from '../store-state'
-
-declare const window: Window
+import { setAuthSession } from '../../../shared/lib/data/auth-session'
+import {
+  getSessionWithTimeout,
+  hasSupabaseAuthClient,
+  signInWithPasswordApi,
+  signOutApi,
+  signUpWithPasswordApi,
+  subscribeAuthStateChange,
+} from '../services/auth.supabase'
 
 export type AuthStatus = 'idle' | 'loading' | 'signedIn' | 'signedOut'
 
@@ -22,24 +26,12 @@ export interface AuthSliceActions {
   clearAuthError: () => void
 }
 
-export type AuthSlice = { auth: AuthSliceState } & AuthSliceActions
+export type AuthStore = { auth: AuthSliceState } & AuthSliceActions
 
 let authListenerAttached = false
 let initInFlight: Promise<void> | null = null
 
-function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
-  return Promise.race([
-    p,
-    new Promise<T>((_resolve, reject) => {
-      const id = window.setTimeout(() => reject(new Error(message)), ms)
-      p.finally(() => window.clearTimeout(id)).catch(() => {
-        // ignore
-      })
-    }),
-  ])
-}
-
-export const createAuthSlice: StateCreator<StoreState, [], [], AuthSlice> = (set) => ({
+export const useAuthStore = create<AuthStore>()((set) => ({
   auth: {
     status: 'idle',
     session: null,
@@ -53,8 +45,7 @@ export const createAuthSlice: StateCreator<StoreState, [], [], AuthSlice> = (set
   initAuth: async () => {
     if (initInFlight) return await initInFlight
 
-    const client = getSupabaseClient()
-    if (!client) {
+    if (!hasSupabaseAuthClient()) {
       setAuthSession(null)
       set((s) => ({
         ...s,
@@ -69,15 +60,23 @@ export const createAuthSlice: StateCreator<StoreState, [], [], AuthSlice> = (set
         auth: { ...s.auth, status: 'loading', authError: null },
       }))
 
-      try {
-        const res = await withTimeout(
-          client.auth.getSession(),
-          8000,
-          'Timeout ao verificar sessão. Verifique conexão/URL do Supabase.',
-        )
-        if (res.error) throw res.error
+      const { session, error } = await getSessionWithTimeout(
+        8000,
+        'Timeout ao verificar sessão. Verifique conexão/URL do Supabase.',
+      )
 
-        const session = res.data.session
+      if (error) {
+        setAuthSession(null)
+        set((s) => ({
+          ...s,
+          auth: {
+            ...s.auth,
+            session: null,
+            status: 'signedOut',
+            authError: error.message,
+          },
+        }))
+      } else {
         setAuthSession(session)
         set((s) => ({
           ...s,
@@ -87,25 +86,13 @@ export const createAuthSlice: StateCreator<StoreState, [], [], AuthSlice> = (set
             status: session ? 'signedIn' : 'signedOut',
           },
         }))
-      } catch (e) {
-        const message = e instanceof Error ? e.message : 'Falha ao verificar sessão.'
-        setAuthSession(null)
-        set((s) => ({
-          ...s,
-          auth: {
-            ...s.auth,
-            session: null,
-            status: 'signedOut',
-            authError: message,
-          },
-        }))
-      } finally {
-        initInFlight = null
       }
+
+      initInFlight = null
 
       if (!authListenerAttached) {
         authListenerAttached = true
-        client.auth.onAuthStateChange((_event, nextSession) => {
+        subscribeAuthStateChange((nextSession) => {
           setAuthSession(nextSession)
           set((s) => ({
             ...s,
@@ -123,13 +110,8 @@ export const createAuthSlice: StateCreator<StoreState, [], [], AuthSlice> = (set
   },
 
   signInWithPassword: async (email, password) => {
-    const client = getSupabaseClient()
-    if (!client) throw new Error('Supabase não está configurado (variáveis de ambiente).')
     set((s) => ({ ...s, auth: { ...s.auth, authError: null, status: 'loading' } }))
-    const { data, error } = await client.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
-      password,
-    })
+    const { data, error } = await signInWithPasswordApi(email, password)
     if (error) {
       set((s) => ({ ...s, auth: { ...s.auth, authError: error.message, status: 'signedOut' } }))
       throw error
@@ -148,16 +130,8 @@ export const createAuthSlice: StateCreator<StoreState, [], [], AuthSlice> = (set
   },
 
   signUpWithPassword: async (email, password) => {
-    const client = getSupabaseClient()
-    if (!client) throw new Error('Supabase não está configurado (variáveis de ambiente).')
     set((s) => ({ ...s, auth: { ...s.auth, authError: null } }))
-    const { error } = await client.auth.signUp({
-      email: email.trim().toLowerCase(),
-      password,
-      options: {
-        emailRedirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
-      },
-    })
+    const { error } = await signUpWithPasswordApi(email, password)
     if (error) {
       set((s) => ({ ...s, auth: { ...s.auth, authError: error.message } }))
       throw error
@@ -165,15 +139,11 @@ export const createAuthSlice: StateCreator<StoreState, [], [], AuthSlice> = (set
   },
 
   signOut: async () => {
-    const client = getSupabaseClient()
-    if (client) {
-      const { error } = await client.auth.signOut()
-      if (error) throw new Error(error.message)
-    }
+    await signOutApi()
     setAuthSession(null)
     set((s) => ({
       ...s,
       auth: { ...s.auth, session: null, status: 'signedOut', authError: null },
     }))
   },
-})
+}))
