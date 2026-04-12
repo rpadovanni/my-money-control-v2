@@ -1,87 +1,132 @@
-# Regras de Arquitetura - My Money Control v2
+# Project Rules - My Money Control v2
 
-## Princípios Fundamentais
+Always follow AGENTS.md.
 
-**Objetivo**: Simplicidade, clareza, escalabilidade sem over-engineering.
+If there is a conflict, AGENTS.md is the source of truth.
 
-## Regras de Ouro
+---
 
-1. ✅ **Store Global Único**: Toda lógica de estado global fica em `src/shared/store`
-2. ✅ **Slices Independentes**: Slices não se importam entre si; apenas a UI consome o store
-3. ✅ **Tipagem Centralizada**: Toda tipagem de domínios fica em `src/shared/store/types`
-4. ✅ **Sem Contexts de Estado**: Nenhum domínio possui contexto próprio ou store separado
-5. ✅ **UI via Hooks**: A UI só acessa estado via hooks do store (`useStore`)
-6. ✅ **Sem Over-Engineering**: Nada de padrões enterprise, DDD complexo ou sobre-modularização
-7. ✅ **Prioridade**: Velocidade, organização e manutenibilidade
+## Core Principles
 
-## Mapa de Dependências
+- Keep it simple
+- Avoid overengineering
+- Prefer clarity over flexibility
+- Prefer real usage over anticipation
 
-```
-(Global Store)
- |
- ├── auth.slice ← sessão Supabase (MVP nuvem): login, logout, estado signed in/out
- |
- ├── accounts.slice ← contas (fonte: remoto após login; ver docs/supabase-cloud-mvp.md)
- |
- └── transactions.slice ← transações (idem)
-```
+---
 
-Slices aspiracionais (ainda não no repo): `user` perfil, `settings`, `planning`, `investments` — não adicionar até existirem telas.
+## Architecture Rules (MANDATORY)
 
-## Dados remotos (Supabase, MVP nuvem)
+### Feature-first architecture
 
-- **Plano e checklist:** `docs/supabase-cloud-mvp.md`
-- **Regra:** slices **não** importam `@supabase/supabase-js`. Cliente e chamadas ficam em `src/shared/lib/` (ex.: `supabase/client.ts`, `data/` ou `repositories/`), e os slices apenas chamam essas funções.
-- **Online-first:** com sessão ativa, **Postgres (Supabase)** é a fonte da verdade; Dexie pode permanecer só para **migração** ou modo legado até remoção, não como fila de sync no MVP.
-- **RLS:** toda tabela com `user_id` deve ter políticas testadas; nunca confiar só no frontend.
+- All new code MUST live inside a feature
+- Features must be isolated and self-contained
 
-## Tarefas Automáticas
+Each feature may contain:
 
-Ao criar ou refatorar código:
+- components
+- hooks
+- store (if needed)
+- services
+- types
 
-1. **Refatorar automaticamente** qualquer arquivo para seguir essas regras
-2. **Criar novos slices** conforme necessidade; para backend/nuvem seguir `docs/supabase-cloud-mvp.md`
-3. **Nunca criar** sistemas de diretórios complexos
-4. **Centralizar tipos** em `src/shared/store/types`
-5. **Manter slices independentes** (sem imports entre slices)
+---
 
-## Padrão de Slice
+### Feature isolation
 
-```typescript
-import type { StateCreator } from 'zustand';
-import type { MyType } from '../types/my-type';
+- NEVER import one feature into another
+- Cross-feature communication must happen via:
+  - shared (generic only)
+  - services
 
-export interface MySlice {
- myData: MyType;
- updateMyData: (data: Partial<MyType>) => void;
-}
+---
 
-export const createMySlice: StateCreator<MySlice> = (set) => ({
- myData: initialValue,
- updateMyData: (data) => set((s) => ({ myData: { ...s.myData, ...data } })),
-});
-```
+### Shared usage
 
-## Uso do Store
+- Only move code to `shared` if:
+  - Used by 2+ features
+  - Domain-agnostic
 
-```typescript
-import { useStore } from '@/shared/store';
+- DO NOT place business logic in shared
 
-// Ler estado
-const theme = useStore((state) => state.settings.theme);
+---
 
-// Atualizar estado
-const updateSettings = useStore((state) => state.updateSettings);
-updateSettings({ theme: 'dark' });
-```
+### State management (Zustand)
 
-## O Que NÃO Fazer
+- Prefer state per feature
+- Global state ONLY for:
+  - auth
+  - app-wide settings
 
-- ❌ Criar contexts React para estado global
-- ❌ Criar stores separados por feature
-- ❌ Fazer slices importarem outros slices
-- ❌ Importar o cliente Supabase (ou HTTP direto ao backend) **dentro** de `store/slices/`
-- ❌ Usar padrões enterprise complexos
-- ❌ Criar sistemas de diretórios complexos
-- ❌ Duplicar lógica de estado
+- NEVER create a large centralized store
 
+---
+
+### Services layer
+
+- Services handle:
+  - Supabase (remote)
+  - Dexie (local)
+  - data logic
+
+- Services MUST NOT depend on React
+
+- DO NOT use Supabase directly inside components or stores
+
+---
+
+### Hooks
+
+- Must encapsulate logic
+- Must not contain UI concerns
+
+---
+
+### Components
+
+- Must be presentational when possible
+- MUST NOT fetch data directly
+
+---
+
+### Data flow
+
+UI → hooks → services → (api/local)
+
+---
+
+## Supabase Rules
+
+- Follow `docs/supabase-cloud-mvp.md`
+- Supabase access must be isolated in services/lib
+- Respect RLS (never trust frontend only)
+
+---
+
+## Anti-patterns (FORBIDDEN)
+
+- Centralized global store
+- Feature-to-feature imports
+- Business logic inside shared
+- Fetching data inside components
+- Over-abstraction without real use
+
+---
+
+## Decision Guidelines
+
+When in doubt:
+
+- Prefer duplication over premature abstraction
+- Prefer feature over shared
+- Prefer simple over generic
+
+---
+
+## Enforcement
+
+If a request violates these rules:
+
+- DO NOT follow blindly
+- Suggest a compliant alternative
+- Explain why it violates the architecture

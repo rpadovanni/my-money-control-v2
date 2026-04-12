@@ -1,30 +1,185 @@
-# Agent guide (My Money Control v2)
+# AGENTS.md
 
-Este arquivo existe para manter o projeto consistente quando você (ou um agente) estiverem implementando novas features.
+## 🧠 Project Philosophy
 
-## Objetivo do produto (curto)
-- App de finanças pessoal; **hoje** os dados vivem no **navegador (Dexie/IndexedDB)** e o app é **PWA**
-- **Direção do MVP nuvem:** **Supabase** (Auth + Postgres), **online-first** — mesma conta no desktop e no mobile; ver **[`docs/supabase-cloud-mvp.md`](docs/supabase-cloud-mvp.md)** (plano, schema, RLS, camada de dados, checklist)
-- **Futuro (pós-MVP nuvem):** offline avançado — cache local, fila e **sync eventual** (ver README → Roadmap)
+Este projeto segue uma arquitetura **monolítica modular orientada a features**.
 
-## Regras de arquitetura (obrigatórias)
-- **Store global único** em `src/shared/store`
-- **Slices independentes** (sem import entre slices)
-- **Tipos centralizados** em `src/shared/store/types`
-- **UI consome apenas `useStore`** (nada de contexts para estado global)
-- Evitar over-engineering: estrutura pequena, arquivos diretos, sem “camadas” desnecessárias
+Objetivos:
 
-## Onde mexer
-- UI principal: `src/App.tsx` (por enquanto; inclui painel Nuvem / auth)
-- Store: `src/shared/store/index.ts`
-- Slices: `src/shared/store/slices/*.slice.ts` (`auth`, `accounts`, `transactions`; **sem** import entre slices)
-- Tipos: `src/shared/store/types/`
-- IndexedDB (local / migração): `src/shared/lib/db/`
-- **Supabase (quando implementado):** cliente em `src/shared/lib/supabase/`; leitura/escrita remota em `src/shared/lib/data/` ou `repositories/` — **não** dentro de `slices/`
+- Escalabilidade sem complexidade desnecessária
+- Baixo acoplamento entre features
+- Alta previsibilidade
+- Evolução baseada em uso real (não abstração prematura)
 
-## Padrões práticos
-- Valores monetários: sempre em **centavos** no domínio (`amountCents`)
-- Datas: `YYYY-MM-DD` no domínio
-- Filtros: `YYYY-MM` (mês) para queries
-- **Commits**: mensagens (assunto e corpo) sempre em **inglês** (ex.: Conventional Commits)
+---
 
+## 🎯 Objetivo do produto
+
+- App de finanças pessoal
+- Estado atual: **local-first (Dexie / IndexedDB) + PWA**
+- MVP nuvem: **Supabase (Auth + Postgres)** com abordagem **online-first**
+- Futuro: suporte a **offline avançado com sync eventual**
+
+---
+
+## 📁 Estrutura do projeto
+
+```
+src/
+  app/
+    router/
+    providers/
+
+  features/
+    <feature-name>/
+      components/
+      hooks/
+      store/
+      services/
+      utils/
+      types/
+      pages/
+
+  shared/
+    components/
+    hooks/
+    utils/
+    lib/
+    types/
+
+  assets/
+  styles/
+  main.tsx
+```
+
+---
+
+## 🧩 Regras de arquitetura
+
+### 1. Organização por feature
+
+Cada feature deve ser **autocontida** e conter:
+
+- UI (components)
+- lógica (hooks)
+- estado (store)
+- dados (services)
+- tipos (types)
+
+---
+
+### 2. Isolamento entre features
+
+- ❌ Features NÃO podem importar outras features diretamente
+- ✅ Comunicação via:
+  - shared (genérico)
+  - serviços bem definidos
+
+---
+
+### 3. Uso do `shared/`
+
+Só mover para `shared` quando:
+
+- For usado por **2+ features**
+- For **genérico (sem domínio específico)**
+
+---
+
+### 4. Estado (Zustand)
+
+- Preferir **estado por feature**
+- Usar estado global apenas quando necessário:
+  - auth
+  - configurações globais
+
+- ❌ Evitar store global gigante
+
+---
+
+### 5. Services (camada de dados)
+
+Responsáveis por:
+
+- API (Supabase)
+- storage local (Dexie)
+- regras de dados
+
+Devem ser **independentes de React**
+
+Separação recomendada:
+
+```
+services/
+  feature.service.ts
+  feature.api.ts
+  feature.local.ts
+```
+
+---
+
+### 6. Hooks
+
+- Encapsulam lógica
+- Não misturam UI
+- Nome sempre com `use`
+
+---
+
+### 7. Componentes
+
+- Sem `default export`
+- Nome explícito
+- Não fazem fetch direto
+
+---
+
+### 8. Fluxo de dados
+
+UI → hooks → services → (api/local)
+
+---
+
+### 9. Padrões de domínio
+
+- Valores monetários: `amountCents`
+- Datas: `YYYY-MM-DD`
+- Filtros: `YYYY-MM`
+
+---
+
+### 10. DRY vs YAGNI
+
+- Duplicar antes de abstrair
+- Evitar abstrações prematuras
+
+---
+
+## 🚨 Anti-patterns proibidos
+
+- Store global centralizada gigante
+- Features acopladas entre si
+- Services com dependência de React
+- Código de domínio dentro de shared
+- Abstrações genéricas sem uso real
+
+---
+
+## 🚀 Evolução do projeto
+
+1. Criar feature isolada
+2. Validar uso real
+3. Refatorar
+4. Só então extrair para shared
+
+---
+
+## 🎯 Objetivo final
+
+Manter o projeto:
+
+- modular
+- previsível
+- fácil de evoluir
+
+Sem overengineering.
