@@ -1,4 +1,3 @@
-import './App.css'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import {
   Archive,
@@ -58,6 +57,142 @@ function errMessage(e: unknown): string {
   return e instanceof Error ? e.message : 'Algo deu errado. Tente de novo.'
 }
 
+function navLinkClass(isActive: boolean) {
+  return [
+    'inline-flex items-center gap-2 rounded-full border border-mmc-border bg-mmc-surface px-2.5 py-2 text-[13px] text-white/82 no-underline transition-colors',
+    'hover:bg-white/[0.08]',
+    isActive &&
+      "relative border-mmc-accent/55 shadow-[0_0_0_4px_var(--color-mmc-nav-active-glow)] after:pointer-events-none after:absolute after:inset-x-3 after:bottom-1 after:h-0.5 after:rounded-sm after:bg-mmc-accent/85 after:content-['']",
+  ]
+    .filter(Boolean)
+    .join(' ')
+}
+
+const ui = {
+  container: 'mx-auto max-w-[1100px] px-mmc-3 pb-12 pt-mmc-4',
+  containerOffline:
+    'mx-auto max-w-[1100px] px-mmc-3 pb-12 pt-[calc(var(--spacing-mmc-4)+36px)]',
+  header: 'mb-4 flex items-start justify-between gap-4',
+  headerAside:
+    'flex max-w-full shrink-0 flex-wrap items-center justify-end gap-x-3 gap-y-2 self-center sm:max-w-[520px]',
+  headerCloud: 'flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1.5',
+  headerCloudEmail:
+    'max-w-[160px] truncate text-mmc-sm leading-tight sm:max-w-[55vw] min-[900px]:max-w-[280px]',
+  headerCloudActions: 'flex shrink-0 flex-nowrap gap-1',
+  muted: 'text-mmc-muted',
+  card: 'rounded-mmc-card border border-mmc-border-subtle bg-mmc-surface p-mmc-3',
+  cardTitle: 'mb-mmc-2 text-mmc-md font-semibold',
+  cardLogin: 'mb-4 rounded-mmc-card border border-mmc-border-subtle bg-mmc-surface p-mmc-3',
+  codeBlock:
+    'mt-2.5 overflow-auto whitespace-pre rounded-mmc-card border border-mmc-border bg-mmc-code-bg p-3 text-mmc-sm leading-snug',
+  cloudAuthError:
+    'mb-3 rounded-mmc-input border border-mmc-notice-err-border bg-mmc-notice-err-bg p-2.5 text-mmc-base text-mmc-notice-err-text',
+  pill: 'rounded-full border border-white/16 bg-white/[0.06] px-2.5 py-1.5 text-mmc-sm',
+  row: 'grid grid-cols-1 gap-3 min-[640px]:grid-cols-3',
+  row2: 'grid grid-cols-1 gap-3 min-[640px]:grid-cols-2',
+  row4: 'grid grid-cols-1 gap-3 min-[640px]:grid-cols-2 min-[960px]:grid-cols-4',
+  rowActionsLogin: 'mt-3 flex flex-wrap items-center gap-2.5',
+  form: 'grid grid-cols-1 gap-3 min-[640px]:grid-cols-2',
+  formFull: 'col-span-full min-[640px]:col-span-2',
+  actions: 'col-span-full flex justify-end gap-2 min-[640px]:col-span-2',
+  btnWithIcon: 'inline-flex items-center gap-2',
+  btnIcon: 'size-[18px] shrink-0 opacity-90',
+  btnIconSpin: 'size-[18px] shrink-0 animate-spin opacity-90',
+  btnIconHeader: 'size-4 shrink-0 opacity-90',
+  btnGhost: 'bg-transparent',
+  btnDanger: 'border-mmc-danger-border text-mmc-danger-fg',
+  btnSecondary: 'bg-white/[0.04]',
+  btnIconBtn:
+    'inline-flex min-h-10 min-w-10 items-center justify-center p-2 leading-none',
+  btnIconBtnHeader:
+    'inline-flex min-h-9 min-w-9 items-center justify-center p-1.5 leading-none',
+  btnIconAside:
+    'inline-flex min-h-10 min-w-10 items-center justify-center border-mmc-border bg-mmc-surface-2 p-2 leading-none',
+  btnIconAsideGhost:
+    'inline-flex min-h-10 min-w-10 items-center justify-center border-mmc-border bg-white/[0.05] p-2 leading-none',
+  btnIconAsideDanger:
+    'inline-flex min-h-10 min-w-10 items-center justify-center border-mmc-danger-icon-border bg-mmc-danger-icon-bg p-2 leading-none text-red-200',
+  topNavIcon: 'size-[18px] shrink-0',
+  grid: 'mt-mmc-3 grid grid-cols-1 gap-mmc-3 min-[900px]:grid-cols-2',
+  gridSingle: 'mt-mmc-3 grid grid-cols-1 gap-mmc-3',
+  pageTitle: 'mb-mmc-2 text-mmc-lg font-bold tracking-tight text-white/95',
+  noticeError:
+    'mb-4 flex items-start gap-2.5 rounded-mmc-panel border border-mmc-notice-err-border bg-mmc-notice-err-bg px-3.5 py-3 text-mmc-base leading-snug text-mmc-notice-err-text',
+  noticeText: 'min-w-0 flex-1',
+  noticeDismiss:
+    'inline-flex min-h-8 min-w-8 shrink-0 bg-black/15 px-2.5 py-1 text-lg leading-tight',
+  hint: 'text-mmc-xs leading-snug text-mmc-hint',
+  hintBlock: 'mb-3 mt-0 text-mmc-xs leading-snug text-mmc-hint',
+  stickyFilters:
+    'sticky top-mmc-2 z-[3] self-start rounded-mmc-card border border-mmc-border-subtle bg-mmc-surface p-mmc-3 shadow-[0_4px_24px_rgb(0_0_0_/_0.35)]',
+  periodLabel: 'mb-3 mt-0 text-[13px] text-mmc-muted',
+  summaryGrid: 'grid grid-cols-2 gap-3 min-[720px]:grid-cols-4',
+  value: 'mt-1 font-bold',
+  positive: 'text-mmc-positive',
+  negative: 'text-mmc-negative',
+  neutral: 'text-mmc-neutral',
+  accountForm: 'mb-4',
+  accountFormDisabled: 'pointer-events-none opacity-55',
+  accountEditForm:
+    'mb-4 grid grid-cols-1 gap-3 rounded-mmc-panel border border-mmc-pwa-border p-3 min-[640px]:grid-cols-2',
+  accountEditTitle: 'col-span-full mb-2 mt-0 text-[15px] font-semibold',
+  list: 'mt-2 flex list-none flex-col gap-2.5 p-0',
+  item: 'flex items-start justify-between gap-3 rounded-mmc-panel border border-mmc-border-soft bg-mmc-item-bg p-3',
+  itemRow: 'items-center',
+  itemRowTall: 'items-start',
+  itemMain: 'min-w-0 flex-1',
+  itemAside: 'flex shrink-0 flex-col items-end justify-center gap-2.5',
+  itemAsideTall: 'flex shrink-0 flex-col items-end justify-start gap-2.5 pt-px',
+  itemAsideMeta:
+    'max-w-[min(200px,52vw)] text-right text-mmc-sm leading-snug tracking-wide text-mmc-muted [overflow-wrap:break-word] [hyphens:auto]',
+  itemActions: 'flex shrink-0 flex-nowrap items-center justify-end gap-1.5',
+  itemHead: 'flex flex-wrap items-center justify-between gap-x-3.5 gap-y-2',
+  itemHeadMain: 'flex min-w-0 flex-wrap items-center gap-2',
+  tag: 'inline-flex shrink-0 items-center rounded-full border border-mmc-tag-border bg-mmc-tag-bg px-2 py-0.5 text-mmc-xs font-semibold tracking-wide text-mmc-tag-text',
+  txAmount: 'leading-snug [&_strong]:text-[1.05rem]',
+  txDetail: 'mt-1.5 text-mmc-base leading-snug text-mmc-muted',
+  emptyState:
+    'flex flex-col items-center gap-mmc-2 px-mmc-2 py-mmc-4 text-center',
+  emptyIcon: 'size-12 text-mmc-empty-icon opacity-45',
+  emptyTitle: 'm-0 text-mmc-md font-semibold text-white/88',
+  offlineBar:
+    'fixed left-0 right-0 top-0 z-[200] flex items-center justify-center gap-mmc-2 border-b border-mmc-offline-border bg-mmc-offline-bg px-mmc-3 py-mmc-1 text-mmc-sm text-mmc-offline-text',
+  toastStack:
+    'pointer-events-none fixed bottom-mmc-3 left-1/2 z-[150] flex max-w-[min(420px,calc(100vw-32px))] -translate-x-1/2 flex-col gap-mmc-1 [&>*]:pointer-events-auto',
+  toastOk:
+    'animate-[mmc-toast-in_0.22s_ease-out] rounded-mmc-toast border border-mmc-toast-ok-border bg-mmc-toast-ok-bg px-mmc-3 py-mmc-2 text-mmc-sm leading-snug text-mmc-toast-ok-text shadow-[0_8px_32px_rgb(0_0_0_/_0.45)]',
+  toastErr:
+    'animate-[mmc-toast-in_0.22s_ease-out] rounded-mmc-toast border border-mmc-toast-err-border bg-mmc-toast-err-bg px-mmc-3 py-mmc-2 text-mmc-sm leading-snug text-mmc-toast-err-text shadow-[0_8px_32px_rgb(0_0_0_/_0.45)]',
+  scrollTop:
+    'fixed bottom-mmc-3 right-mmc-3 z-[130] inline-flex size-11 items-center justify-center rounded-full border border-white/18 bg-mmc-scroll-bg text-white/90 shadow-[0_4px_20px_rgb(0_0_0_/_0.4)] hover:bg-mmc-scroll-hover',
+  pwaBar:
+    'fixed bottom-mmc-3 left-mmc-3 right-mmc-3 z-[140] flex flex-wrap items-center justify-between gap-mmc-2 rounded-mmc-panel border border-mmc-pwa-border bg-mmc-pwa-bg px-mmc-3 py-mmc-2 text-mmc-sm shadow-[0_8px_32px_rgb(0_0_0_/_0.5)]',
+  pwaBarText: 'm-0 min-w-[200px] flex-1 leading-snug text-white/82',
+  pwaActions: 'flex flex-wrap items-center gap-mmc-1',
+  modalRoot:
+    'fixed inset-0 z-[1000] flex items-center justify-center bg-mmc-modal-overlay p-4',
+  modalPanel:
+    'w-full max-w-[420px] rounded-mmc-card border border-mmc-modal-border bg-mmc-modal-panel p-5 shadow-[0_16px_48px_rgb(0_0_0_/_0.45)] outline-none focus-visible:shadow-[0_16px_48px_rgb(0_0_0_/_0.45),0_0_0_4px_rgb(120_163_255_/_0.22)]',
+  modalTitle: 'mb-2.5 mt-0 text-lg font-bold',
+  modalDesc: 'mb-4 mt-0 text-mmc-base leading-snug text-white/76',
+  modalActions: 'flex flex-wrap justify-end gap-2',
+  archivedDetails:
+    'mt-4 border-t border-white/10 pt-3 [&_summary]:cursor-pointer [&_summary]:list-none [&_summary]:text-mmc-base [&_summary]:font-semibold [&_summary::-webkit-details-marker]:hidden',
+  itemArchived: 'opacity-[0.92]',
+  accountFatura: 'mt-2 text-mmc-sm text-mmc-muted',
+  accountPayable: 'mt-1 text-[15px] font-bold text-mmc-payable',
+  accountBalance: 'mt-2 text-mmc-base font-bold',
+  accountBalanceSubtle: 'mt-1 text-mmc-sm font-medium text-mmc-muted',
+  accountBalanceCompact: '!mt-1.5 !text-[13px]',
+  payForm:
+    'mt-3 grid grid-cols-1 gap-2.5 rounded-mmc-input border border-mmc-pwa-border bg-mmc-pay-form-bg p-3',
+  payFormActions: 'flex flex-wrap justify-end gap-2',
+  payOpen: 'mt-2.5 self-start',
+  topNav: 'mb-4 mt-0 flex flex-wrap gap-2.5',
+  checkboxLabel:
+    '!flex-row !items-center gap-2.5 [&_input]:h-auto [&_input]:w-auto [&_input]:border-0 [&_input]:bg-transparent [&_input]:p-0',
+} as const
+
 type ConfirmDialogState =
   | null
   | { kind: 'delete-transaction'; transactionId: string }
@@ -67,20 +202,20 @@ function RequireConfigured({ children }: { children: React.ReactNode }) {
   const ok = isSupabaseConfigured()
   if (ok) return children
   return (
-    <div className="container">
-      <header className="header">
+    <div className={ui.container}>
+      <header className={ui.header}>
         <div>
           <h1>My Money Control</h1>
-          <p className="muted">Configuração necessária para usar a versão em nuvem.</p>
+          <p className={ui.muted}>Configuração necessária para usar a versão em nuvem.</p>
         </div>
       </header>
-      <section className="card">
-        <h2>Configure o Supabase</h2>
-        <p className="muted">
+      <section className={ui.card}>
+        <h2 className={ui.cardTitle}>Configure o Supabase</h2>
+        <p className={ui.muted}>
           Para usar rotas protegidas (login obrigatório), defina as variáveis no arquivo <code>.env</code>:
         </p>
-        <pre className="code-block">{`VITE_SUPABASE_URL=...\nVITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...`}</pre>
-        <p className="muted">
+        <pre className={ui.codeBlock}>{`VITE_SUPABASE_URL=...\nVITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...`}</pre>
+        <p className={ui.muted}>
           Depois reinicie o <code>pnpm dev</code>. O passo a passo está em <code>README.md</code> e{' '}
           <code>docs/supabase-cloud-mvp.md</code>.
         </p>
@@ -105,9 +240,9 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 
   if (status === 'idle' || status === 'loading') {
     return (
-      <div className="container">
-        <section className="card">
-          <p className="muted">Verificando sessão…</p>
+      <div className={ui.container}>
+        <section className={ui.card}>
+          <p className={ui.muted}>Verificando sessão…</p>
         </section>
       </div>
     )
@@ -163,26 +298,26 @@ function LoginPage() {
   }
 
   return (
-    <div className="container">
-      <header className="header">
+    <div className={ui.container}>
+      <header className={ui.header}>
         <div>
           <h1>My Money Control</h1>
-          <p className="muted">Entre para acessar seus dados na nuvem.</p>
+          <p className={ui.muted}>Entre para acessar seus dados na nuvem.</p>
         </div>
-        <div className="pill">
+        <div className={ui.pill}>
           {authStatus === 'loading' || authStatus === 'idle' ? 'Sessão…' : authSession?.user ? 'Logado' : 'Login'}
         </div>
       </header>
 
-      <section className="card cloud-panel" aria-label="Login">
-        <h2>Login</h2>
+      <section className={ui.cardLogin} aria-label="Login">
+        <h2 className={ui.cardTitle}>Login</h2>
         {authError ? (
-          <p className="cloud-auth-error" role="alert">
+          <p className={ui.cloudAuthError} role="alert">
             {authError}
           </p>
         ) : null}
-        <form className="cloud-panel-form" onSubmit={(e) => void onAuthSignIn(e)}>
-          <div className="row row-2">
+        <form onSubmit={(e) => void onAuthSignIn(e)}>
+          <div className={ui.row2}>
             <label>
               <span>E-mail</span>
               <input
@@ -206,12 +341,12 @@ function LoginPage() {
               />
             </label>
           </div>
-          <div className="row-actions">
-            <button type="submit" disabled={authBusy} className="btn-with-icon">
+          <div className={ui.rowActionsLogin}>
+            <button type="submit" disabled={authBusy} className={ui.btnWithIcon}>
               {authBusy ? (
-                <Loader2 className="btn-icon icon-spin" aria-hidden />
+                <Loader2 className={ui.btnIconSpin} aria-hidden />
               ) : (
-                <LogIn className="btn-icon" aria-hidden />
+                <LogIn className={ui.btnIcon} aria-hidden />
               )}
               <span>{authBusy ? 'Entrando…' : 'Entrar'}</span>
             </button>
@@ -953,8 +1088,8 @@ function Dashboard() {
 
   function renderTransactionFormCard() {
     return (
-      <div className="card">
-        <h2>
+      <div className={ui.card}>
+        <h2 className={ui.cardTitle}>
           {editing
             ? editing.kind === 'opening_balance'
               ? 'Saldo inicial'
@@ -963,7 +1098,7 @@ function Dashboard() {
                 : 'Editar transação'
             : 'Nova transação'}
         </h2>
-        <form className="form" onSubmit={onSubmit}>
+        <form className={ui.form} onSubmit={onSubmit}>
           {editing?.kind !== 'opening_balance' ? (
             <label>
               <span>Tipo</span>
@@ -1087,13 +1222,13 @@ function Dashboard() {
           ) : null}
 
           {editing?.kind === 'opening_balance' ? (
-            <label className="full">
+            <label className={ui.formFull}>
               <span>Conta</span>
               <input readOnly value={accountName(editing.accountId)} />
             </label>
           ) : null}
 
-          <label className="full">
+          <label className={ui.formFull}>
             <span>Descrição (opcional)</span>
             <input
               value={form.description}
@@ -1101,32 +1236,32 @@ function Dashboard() {
             />
           </label>
 
-          <div className="actions">
+          <div className={ui.actions}>
             {editing ? (
               <>
                 <button
                   type="button"
-                  className="ghost btn-with-icon"
+                  className={`${ui.btnGhost} ${ui.btnWithIcon}`}
                   onClick={() => setEditingId(null)}
                 >
-                  <X className="btn-icon" aria-hidden />
+                  <X className={ui.btnIcon} aria-hidden />
                   <span>Voltar</span>
                 </button>
-                <button type="submit" disabled={!canSubmit || submittingTx} className="btn-with-icon">
+                <button type="submit" disabled={!canSubmit || submittingTx} className={ui.btnWithIcon}>
                   {submittingTx ? (
-                    <Loader2 className="btn-icon icon-spin" aria-hidden />
+                    <Loader2 className={ui.btnIconSpin} aria-hidden />
                   ) : (
-                    <Check className="btn-icon" aria-hidden />
+                    <Check className={ui.btnIcon} aria-hidden />
                   )}
                   <span>{submittingTx ? 'Salvando…' : 'Salvar'}</span>
                 </button>
               </>
             ) : (
-              <button type="submit" disabled={!canSubmit || submittingTx} className="btn-with-icon">
+              <button type="submit" disabled={!canSubmit || submittingTx} className={ui.btnWithIcon}>
                 {submittingTx ? (
-                  <Loader2 className="btn-icon icon-spin" aria-hidden />
+                  <Loader2 className={ui.btnIconSpin} aria-hidden />
                 ) : (
-                  <Plus className="btn-icon" aria-hidden />
+                  <Plus className={ui.btnIcon} aria-hidden />
                 )}
                 <span>{submittingTx ? 'Salvando…' : 'Incluir'}</span>
               </button>
@@ -1139,34 +1274,34 @@ function Dashboard() {
 
   function renderTransactionListCard() {
     return (
-      <div className="card">
-        <h2>Transações</h2>
+      <div className={ui.card}>
+        <h2 className={ui.cardTitle}>Transações</h2>
         {rows.length === 0 ? (
-          <div className="empty-state">
-            <Inbox className="empty-state-icon" aria-hidden />
-            <p className="empty-state-title">Nenhuma transação neste período</p>
-            <p className="muted">
+          <div className={ui.emptyState}>
+            <Inbox className={ui.emptyIcon} aria-hidden />
+            <p className={ui.emptyTitle}>Nenhuma transação neste período</p>
+            <p className={ui.muted}>
               Ajuste mês, conta ou tipo nos filtros — ou inclua um lançamento{' '}
               {view === 'transactions' ? 'no formulário ao lado' : 'no formulário acima'}.
             </p>
           </div>
         ) : (
-          <ul className="list">
+          <ul className={ui.list}>
             {rows.map((t) => (
-              <li key={t.id} className="item item-row-card">
-                <div className="itemMain">
-                  <div className="tx-card-amount-line">
+              <li key={t.id} className={`${ui.item} ${ui.itemRow}`}>
+                <div className={ui.itemMain}>
+                  <div className={ui.txAmount}>
                     {t.kind === 'opening_balance' ? (
-                      <strong className="neutral">{signedFormatCents(t.amountCents)}</strong>
+                      <strong className={ui.neutral}>{signedFormatCents(t.amountCents)}</strong>
                     ) : t.type === 'transfer' ? (
-                      <strong className="neutral">↔ {formatCents(t.amountCents)}</strong>
+                      <strong className={ui.neutral}>↔ {formatCents(t.amountCents)}</strong>
                     ) : (
-                      <strong className={t.type === 'income' ? 'positive' : 'negative'}>
+                      <strong className={t.type === 'income' ? ui.positive : ui.negative}>
                         {t.type === 'income' ? '+' : '−'} {formatCents(t.amountCents)}
                       </strong>
                     )}
                   </div>
-                  <div className="muted tx-card-detail">
+                  <div className={ui.txDetail}>
                     {t.kind === 'opening_balance' ? (
                       <>Saldo inicial • {accountName(t.accountId)}</>
                     ) : t.type === 'transfer' ? (
@@ -1184,26 +1319,26 @@ function Dashboard() {
                     )}
                   </div>
                 </div>
-                <div className="item-aside">
-                  <span className="item-aside-meta muted">{formatISODateForDisplay(t.date)}</span>
-                  <div className="itemActions">
+                <div className={ui.itemAside}>
+                  <span className={ui.itemAsideMeta}>{formatISODateForDisplay(t.date)}</span>
+                  <div className={ui.itemActions}>
                     <button
                       type="button"
-                      className="ghost icon-btn"
+                      className={`${ui.btnGhost} ${ui.btnIconAsideGhost}`}
                       onClick={() => setEditingId(t.id)}
                       aria-label="Editar transação"
                       title="Editar"
                     >
-                      <Pencil aria-hidden />
+                      <Pencil className={ui.btnIcon} aria-hidden />
                     </button>
                     <button
                       type="button"
-                      className="danger icon-btn"
+                      className={`${ui.btnDanger} ${ui.btnIconAsideDanger}`}
                       onClick={() => void requestDeleteTransaction(t.id)}
                       aria-label="Excluir transação"
                       title="Excluir"
                     >
-                      <Trash2 aria-hidden />
+                      <Trash2 className={ui.btnIcon} aria-hidden />
                     </button>
                   </div>
                 </div>
@@ -1235,17 +1370,17 @@ function Dashboard() {
   }
 
   return (
-    <div className={`container${!online ? ' container--offline' : ''}`}>
+    <div className={!online ? ui.containerOffline : ui.container}>
       {!online ? (
-        <div className="offline-bar" role="status">
-          <WifiOff className="btn-icon" aria-hidden />
+        <div className={ui.offlineBar} role="status">
+          <WifiOff className={ui.btnIcon} aria-hidden />
           <span>Você está offline. O app precisa de conexão para sincronizar com a nuvem.</span>
         </div>
       ) : null}
-      <header className="header">
+      <header className={ui.header}>
         <div>
           <h1>My Money Control</h1>
-          <p className="muted">
+          <p className={ui.muted}>
             {usingCloud
               ? 'Dados na nuvem (Supabase). Requer conexão para alterações.'
               : isSupabaseConfigured()
@@ -1253,19 +1388,19 @@ function Dashboard() {
                 : 'Dados neste aparelho (IndexedDB). Opcional: variáveis VITE_SUPABASE_* para sync.'}
           </p>
         </div>
-        <div className="header-aside">
-          <div className="pill">
+        <div className={ui.headerAside}>
+          <div className={ui.pill}>
             {!authReady ? 'Sessão…' : ready ? (usingCloud ? 'Nuvem' : 'Local') : 'Carregando…'}
           </div>
           {isSupabaseConfigured() && authSession?.user ? (
-            <div className="header-cloud" aria-label="Sessão na nuvem">
-              <span className="header-cloud-email muted" title={authSession.user.email ?? undefined}>
+            <div className={ui.headerCloud} aria-label="Sessão na nuvem">
+              <span className={ui.headerCloudEmail} title={authSession.user.email ?? undefined}>
                 {authSession.user.email}
               </span>
-              <div className="header-cloud-actions">
+              <div className={ui.headerCloudActions}>
                 <button
                   type="button"
-                  className="btn-secondary icon-btn icon-btn--header"
+                  className={`${ui.btnSecondary} ${ui.btnIconBtnHeader}`}
                   disabled={
                     migratingLocal || wasLocalDataMigratedForUser(authSession.user.id) || !ready
                   }
@@ -1286,19 +1421,19 @@ function Dashboard() {
                   }
                 >
                   {migratingLocal ? (
-                    <Loader2 className="btn-icon icon-spin" aria-hidden />
+                    <Loader2 className={ui.btnIconSpin} aria-hidden />
                   ) : (
-                    <CloudUpload className="btn-icon" aria-hidden />
+                    <CloudUpload className={ui.btnIconHeader} aria-hidden />
                   )}
                 </button>
                 <button
                   type="button"
-                  className="btn-secondary icon-btn icon-btn--header"
+                  className={`${ui.btnSecondary} ${ui.btnIconBtnHeader}`}
                   onClick={() => void signOut()}
                   aria-label="Sair"
                   title="Sair"
                 >
-                  <LogOut className="btn-icon" aria-hidden />
+                  <LogOut className={ui.btnIconHeader} aria-hidden />
                 </button>
               </div>
             </div>
@@ -1306,36 +1441,27 @@ function Dashboard() {
         </div>
       </header>
 
-      <nav className="top-nav" aria-label="Navegação principal">
-        <NavLink to="/" end className={({ isActive }) => (isActive ? 'top-nav-link is-active' : 'top-nav-link')}>
-          <LayoutDashboard className="top-nav-icon" aria-hidden />
+      <nav className={ui.topNav} aria-label="Navegação principal">
+        <NavLink to="/" end className={({ isActive }) => navLinkClass(isActive)}>
+          <LayoutDashboard className={ui.topNavIcon} aria-hidden />
           <span>Início</span>
         </NavLink>
-        <NavLink
-          to="/transactions"
-          className={({ isActive }) => (isActive ? 'top-nav-link is-active' : 'top-nav-link')}
-        >
-          <Receipt className="top-nav-icon" aria-hidden />
+        <NavLink to="/transactions" className={({ isActive }) => navLinkClass(isActive)}>
+          <Receipt className={ui.topNavIcon} aria-hidden />
           <span>Transações</span>
         </NavLink>
-        <NavLink
-          to="/accounts"
-          className={({ isActive }) => (isActive ? 'top-nav-link is-active' : 'top-nav-link')}
-        >
-          <WalletCards className="top-nav-icon" aria-hidden />
+        <NavLink to="/accounts" className={({ isActive }) => navLinkClass(isActive)}>
+          <WalletCards className={ui.topNavIcon} aria-hidden />
           <span>Contas</span>
         </NavLink>
-        <NavLink
-          to="/categories"
-          className={({ isActive }) => (isActive ? 'top-nav-link is-active' : 'top-nav-link')}
-        >
-          <Tags className="top-nav-icon" aria-hidden />
+        <NavLink to="/categories" className={({ isActive }) => navLinkClass(isActive)}>
+          <Tags className={ui.topNavIcon} aria-hidden />
           <span>Categorias</span>
         </NavLink>
       </nav>
 
       {view !== 'home' ? (
-        <h2 className="page-title">
+        <h2 className={ui.pageTitle}>
           {view === 'transactions'
             ? 'Transações'
             : view === 'accounts'
@@ -1345,39 +1471,35 @@ function Dashboard() {
       ) : null}
 
       {notice ? (
-        <div
-          className="notice notice-error"
-          role="alert"
-          aria-live="polite"
-        >
-          <span className="notice-text">{notice.message}</span>
+        <div className={ui.noticeError} role="alert" aria-live="polite">
+          <span className={ui.noticeText}>{notice.message}</span>
           <button
             type="button"
-            className="notice-dismiss icon-btn"
+            className={ui.noticeDismiss}
             onClick={() => setNotice(null)}
             aria-label="Fechar aviso"
           >
-            <X className="btn-icon" aria-hidden />
+            <X className={ui.btnIcon} aria-hidden />
           </button>
         </div>
       ) : null}
 
       {view === 'categories' ? (
-        <section className="grid single">
-          <div className="card">
-            <h2>Gerenciar categorias</h2>
-            <p className="hint accounts-hint">
+        <section className={ui.gridSingle}>
+          <div className={ui.card}>
+            <h2 className={ui.cardTitle}>Gerenciar categorias</h2>
+            <p className={ui.hintBlock}>
               Use categorias como &quot;Ajuste&quot; para alinhar faturas sem lançar tudo retroativamente. A
               categoria &quot;Transferência&quot; é reservada ao app. Não dá para excluir uma categoria que
               ainda tenha lançamentos — altere ou apague esses lançamentos antes.
             </p>
             <form
-              className="form account-form"
+              className={`${ui.form} ${ui.accountForm}`}
               onSubmit={(e) => {
                 void onAddCategory(e)
               }}
             >
-              <label className="full">
+              <label className={ui.formFull}>
                 <span>Nova categoria</span>
                 <input
                   value={categoryNewLabel}
@@ -1388,7 +1510,7 @@ function Dashboard() {
                   disabled={Boolean(categoriesInitError)}
                 />
               </label>
-              <div className="actions">
+              <div className={ui.actions}>
                 <button
                   type="submit"
                   disabled={
@@ -1396,12 +1518,12 @@ function Dashboard() {
                     !categoryNewLabel.trim() ||
                     Boolean(categoriesInitError)
                   }
-                  className="btn-with-icon"
+                  className={ui.btnWithIcon}
                 >
                   {submittingCategory ? (
-                    <Loader2 className="btn-icon icon-spin" aria-hidden />
+                    <Loader2 className={ui.btnIconSpin} aria-hidden />
                   ) : (
-                    <Plus className="btn-icon" aria-hidden />
+                    <Plus className={ui.btnIcon} aria-hidden />
                   )}
                   <span>{submittingCategory ? 'Salvando…' : 'Incluir'}</span>
                 </button>
@@ -1409,27 +1531,27 @@ function Dashboard() {
             </form>
 
             {!catReady ? (
-              <p className="muted">Carregando…</p>
+              <p className={ui.muted}>Carregando…</p>
             ) : categoriesInitError ? (
-              <p className="muted">
+              <p className={ui.muted}>
                 Lista indisponível até o Supabase estar correto. Use o aviso acima e &quot;Tentar
                 novamente&quot;.
               </p>
             ) : categories.length === 0 ? (
-              <p className="muted">Nenhuma categoria.</p>
+              <p className={ui.muted}>Nenhuma categoria.</p>
             ) : (
-              <ul className="list accounts-list">
+              <ul className={ui.list}>
                 {categories.map((c) => (
-                  <li key={c.id} className="item item-row-card">
-                    <div className="itemMain">
+                  <li key={c.id} className={`${ui.item} ${ui.itemRow}`}>
+                    <div className={ui.itemMain}>
                       {categoryEdit?.id === c.id ? (
                         <form
-                          className="form account-form"
+                          className={`${ui.form} ${ui.accountForm}`}
                           onSubmit={(e) => {
                             void onSaveCategoryEdit(e)
                           }}
                         >
-                          <label className="full">
+                          <label className={ui.formFull}>
                             <span>Nome</span>
                             <input
                               value={categoryEdit.label}
@@ -1439,20 +1561,20 @@ function Dashboard() {
                               maxLength={80}
                             />
                           </label>
-                          <div className="actions">
+                          <div className={ui.actions}>
                             <button
                               type="button"
-                              className="ghost btn-with-icon"
+                              className={`${ui.btnGhost} ${ui.btnWithIcon}`}
                               onClick={() => setCategoryEdit(null)}
                             >
-                              <X className="btn-icon" aria-hidden />
+                              <X className={ui.btnIcon} aria-hidden />
                               <span>Voltar</span>
                             </button>
-                            <button type="submit" disabled={submittingCategory} className="btn-with-icon">
+                            <button type="submit" disabled={submittingCategory} className={ui.btnWithIcon}>
                               {submittingCategory ? (
-                                <Loader2 className="btn-icon icon-spin" aria-hidden />
+                                <Loader2 className={ui.btnIconSpin} aria-hidden />
                               ) : (
-                                <Check className="btn-icon" aria-hidden />
+                                <Check className={ui.btnIcon} aria-hidden />
                               )}
                               <span>{submittingCategory ? 'Salvando…' : 'Salvar'}</span>
                             </button>
@@ -1460,39 +1582,39 @@ function Dashboard() {
                         </form>
                       ) : (
                         <>
-                          <div className="item-head">
-                            <div className="item-head-main">
+                          <div className={ui.itemHead}>
+                            <div className={ui.itemHeadMain}>
                               <strong>{c.label}</strong>
-                              {c.system ? <span className="tag">Sistema</span> : null}
+                              {c.system ? <span className={ui.tag}>Sistema</span> : null}
                             </div>
                           </div>
                         </>
                       )}
                     </div>
                     {categoryEdit?.id !== c.id ? (
-                      <div className="item-aside">
-                        <span className="item-aside-meta muted" title={c.id}>
+                      <div className={ui.itemAside}>
+                        <span className={ui.itemAsideMeta} title={c.id}>
                           {c.id}
                         </span>
                         {!c.system ? (
-                          <div className="itemActions">
+                          <div className={ui.itemActions}>
                             <button
                               type="button"
-                              className="ghost icon-btn"
+                              className={`${ui.btnGhost} ${ui.btnIconAsideGhost}`}
                               aria-label={`Editar ${c.label}`}
                               title="Editar"
                               onClick={() => setCategoryEdit({ id: c.id, label: c.label })}
                             >
-                              <Pencil className="btn-icon" aria-hidden />
+                              <Pencil className={ui.btnIcon} aria-hidden />
                             </button>
                             <button
                               type="button"
-                              className="danger icon-btn"
+                              className={`${ui.btnDanger} ${ui.btnIconAsideDanger}`}
                               aria-label={`Excluir ${c.label}`}
                               title="Excluir"
                               onClick={() => void onDeleteCategory(c.id)}
                             >
-                              <Trash2 className="btn-icon" aria-hidden />
+                              <Trash2 className={ui.btnIcon} aria-hidden />
                             </button>
                           </div>
                         ) : null}
@@ -1507,26 +1629,26 @@ function Dashboard() {
       ) : null}
 
       {usingCloud && categoriesInitError ? (
-        <div className="notice notice-error" role="alert" aria-live="polite">
-          <span className="notice-text">{categoriesInitError}</span>
+        <div className={ui.noticeError} role="alert" aria-live="polite">
+          <span className={ui.noticeText}>{categoriesInitError}</span>
           <button
             type="button"
-            className="btn-secondary btn-with-icon"
+            className={`${ui.btnSecondary} ${ui.btnWithIcon}`}
             disabled={!catReady}
             onClick={() => void initCat()}
           >
-            {!catReady ? <Loader2 className="btn-icon icon-spin" aria-hidden /> : null}
+            {!catReady ? <Loader2 className={ui.btnIconSpin} aria-hidden /> : null}
             <span>Tentar novamente</span>
           </button>
         </div>
       ) : null}
 
       {showTxFiltersSummary ? (
-        <section className="grid">
-          <div className="card sticky-filters-card">
-            <h2>Filtros</h2>
-            <p className="period-label muted">Período: {formatMonthYearForDisplay(month)}</p>
-            <div className="row row-4">
+        <section className={ui.grid}>
+          <div className={ui.stickyFilters}>
+            <h2 className={ui.cardTitle}>Filtros</h2>
+            <p className={ui.periodLabel}>Período: {formatMonthYearForDisplay(month)}</p>
+            <div className={ui.row4}>
               <label>
                 <span>Mês</span>
                 <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
@@ -1578,30 +1700,30 @@ function Dashboard() {
             </div>
           </div>
 
-          <div className="card">
-            <h2>Resumo — {formatMonthYearForDisplay(month)}</h2>
-            <div className="summary summary-4">
+          <div className={ui.card}>
+            <h2 className={ui.cardTitle}>Resumo — {formatMonthYearForDisplay(month)}</h2>
+            <div className={ui.summaryGrid}>
               <div>
-                <div className="muted">Receitas</div>
-                <div className="value">{formatCents(summary.income)}</div>
+                <div className={ui.muted}>Receitas</div>
+                <div className={ui.value}>{formatCents(summary.income)}</div>
               </div>
               <div>
-                <div className="muted">Despesas</div>
-                <div className="value">{formatCents(summary.expense)}</div>
+                <div className={ui.muted}>Despesas</div>
+                <div className={ui.value}>{formatCents(summary.expense)}</div>
               </div>
               <div>
-                <div className="muted">Resultado</div>
-                <div className={summary.flow >= 0 ? 'value positive' : 'value negative'}>
+                <div className={ui.muted}>Resultado</div>
+                <div className={`${ui.value} ${summary.flow >= 0 ? ui.positive : ui.negative}`}>
                   {formatCents(summary.flow)}
                 </div>
-                <div className="hint">Receitas − despesas (sem saldo inicial nem transferências)</div>
+                <div className={ui.hint}>Receitas − despesas (sem saldo inicial nem transferências)</div>
               </div>
               <div>
-                <div className="muted">Saldo no período</div>
-                <div className={summary.period >= 0 ? 'value positive' : 'value negative'}>
+                <div className={ui.muted}>Saldo no período</div>
+                <div className={`${ui.value} ${summary.period >= 0 ? ui.positive : ui.negative}`}>
                   {formatCents(summary.period)}
                 </div>
-                <div className="hint">Inclui saldo inicial e movimentos</div>
+                <div className={ui.hint}>Inclui saldo inicial e movimentos</div>
               </div>
             </div>
           </div>
@@ -1609,16 +1731,16 @@ function Dashboard() {
       ) : null}
 
       {showAccounts ? (
-      <section className={showTxWorkspace ? 'grid' : 'grid single'}>
-        <div className="card">
-          <h2>Contas</h2>
-          <p className="hint accounts-hint">
+      <section className={showTxWorkspace ? ui.grid : ui.gridSingle}>
+        <div className={ui.card}>
+          <h2 className={ui.cardTitle}>Contas</h2>
+          <p className={ui.hintBlock}>
             Saldo por conta = histórico completo. Em cartões, &quot;A pagar&quot; usa sempre o{' '}
             <strong>mês civil atual</strong> (independente do filtro da lista).
           </p>
-          <div className={accountEdit ? 'account-form-wrap is-disabled' : 'account-form-wrap'}>
-            <form className="form account-form" onSubmit={onSubmitAccount}>
-              <label className="full">
+          <div className={accountEdit ? ui.accountFormDisabled : undefined}>
+            <form className={`${ui.form} ${ui.accountForm}`} onSubmit={onSubmitAccount}>
+              <label className={ui.formFull}>
                 <span>Nome</span>
                 <input
                   ref={accountFormNameRef}
@@ -1652,7 +1774,7 @@ function Dashboard() {
                   }
                 />
               </label>
-              <label className="checkbox-line">
+              <label className={ui.checkboxLabel}>
                 <input
                   type="checkbox"
                   checked={accountForm.makeDefault}
@@ -1660,16 +1782,16 @@ function Dashboard() {
                 />
                 <span>Definir como conta padrão</span>
               </label>
-              <div className="actions">
+              <div className={ui.actions}>
                 <button
                   type="submit"
                   disabled={!canSubmitAccount || submittingAccount}
-                  className="btn-with-icon"
+                  className={ui.btnWithIcon}
                 >
                   {submittingAccount ? (
-                    <Loader2 className="btn-icon icon-spin" aria-hidden />
+                    <Loader2 className={ui.btnIconSpin} aria-hidden />
                   ) : (
-                    <Plus className="btn-icon" aria-hidden />
+                    <Plus className={ui.btnIcon} aria-hidden />
                   )}
                   <span>{submittingAccount ? 'Salvando…' : 'Incluir conta'}</span>
                 </button>
@@ -1678,13 +1800,13 @@ function Dashboard() {
           </div>
 
           {accountEdit ? (
-            <form className="form account-form account-edit-form" onSubmit={onSubmitAccountEdit}>
-              <h3 className="account-edit-title">Editar conta</h3>
-              <p className="hint full">
+            <form className={`${ui.accountEditForm} ${ui.accountForm}`} onSubmit={onSubmitAccountEdit}>
+              <h3 className={ui.accountEditTitle}>Editar conta</h3>
+              <p className={`${ui.hint} ${ui.formFull}`}>
                 Ajuste nome, tipo ou saldo inicial. Deixe o saldo vazio para remover o lançamento de saldo
                 inicial.
               </p>
-              <label className="full">
+              <label className={ui.formFull}>
                 <span>Nome</span>
                 <input
                   value={accountEdit.name}
@@ -1726,24 +1848,24 @@ function Dashboard() {
                   onChange={(e) => setAccountEdit((f) => (f ? { ...f, openingDate: e.target.value } : f))}
                 />
               </label>
-              <div className="actions">
+              <div className={ui.actions}>
                 <button
                   type="button"
-                  className="ghost btn-with-icon"
+                  className={`${ui.btnGhost} ${ui.btnWithIcon}`}
                   onClick={() => setAccountEdit(null)}
                 >
-                  <X className="btn-icon" aria-hidden />
+                  <X className={ui.btnIcon} aria-hidden />
                   <span>Voltar</span>
                 </button>
                 <button
                   type="submit"
                   disabled={!canSubmitAccountEdit || submittingAccountEdit}
-                  className="btn-with-icon"
+                  className={ui.btnWithIcon}
                 >
                   {submittingAccountEdit ? (
-                    <Loader2 className="btn-icon icon-spin" aria-hidden />
+                    <Loader2 className={ui.btnIconSpin} aria-hidden />
                   ) : (
-                    <Check className="btn-icon" aria-hidden />
+                    <Check className={ui.btnIcon} aria-hidden />
                   )}
                   <span>{submittingAccountEdit ? 'Salvando…' : 'Salvar'}</span>
                 </button>
@@ -1751,41 +1873,39 @@ function Dashboard() {
             </form>
           ) : null}
           {accounts.length === 0 ? (
-            <div className="empty-state">
-              <WalletCards className="empty-state-icon" aria-hidden />
-              <p className="empty-state-title">Nenhuma conta cadastrada</p>
-              <p className="muted">
+            <div className={ui.emptyState}>
+              <WalletCards className={ui.emptyIcon} aria-hidden />
+              <p className={ui.emptyTitle}>Nenhuma conta cadastrada</p>
+              <p className={ui.muted}>
                 Crie uma conta (banco, carteira ou cartão) no formulário acima para começar a lançar
                 transações.
               </p>
             </div>
           ) : (
-            <ul className="list accounts-list">
+            <ul className={ui.list}>
               {accounts.map((a: Account) => (
                 <li
                   key={a.id}
-                  className={
-                    a.type === 'credit_card' ? 'item item-row-card item-row-card--tall' : 'item item-row-card'
-                  }
+                  className={`${ui.item} ${ui.itemRow} ${a.type === 'credit_card' ? ui.itemRowTall : ''}`}
                 >
-                  <div className="itemMain">
-                    <div className="item-head">
-                      <div className="item-head-main">
+                  <div className={ui.itemMain}>
+                    <div className={ui.itemHead}>
+                      <div className={ui.itemHeadMain}>
                         <strong>{a.name}</strong>
-                        {a.isDefault ? <span className="tag">Padrão</span> : null}
+                        {a.isDefault ? <span className={ui.tag}>Padrão</span> : null}
                       </div>
                     </div>
                     {a.type === 'credit_card' ? (
                       <>
-                        <div className="account-fatura-label muted">Fatura ({faturaMesLabel})</div>
-                        <div className="account-payable-amount">
+                        <div className={`${ui.accountFatura} ${ui.muted}`}>Fatura ({faturaMesLabel})</div>
+                        <div className={ui.accountPayable}>
                           A pagar: {formatCents(creditCardPayableByAccountId[a.id] ?? 0)}
                         </div>
-                        <div className="account-balance account-balance--subtle muted">
+                        <div className={`${ui.accountBalanceSubtle} ${ui.muted}`}>
                           Saldo (contábil): {formatCents(balancesByAccountId[a.id] ?? 0)}
                         </div>
                         {payInvoice?.cardId === a.id ? (
-                          <form className="pay-invoice-form" onSubmit={onSubmitPayInvoice}>
+                          <form className={ui.payForm} onSubmit={onSubmitPayInvoice}>
                             <label>
                               <span>Pagar de</span>
                               <select
@@ -1819,24 +1939,24 @@ function Dashboard() {
                                 onChange={(e) => setPayDate(e.target.value)}
                               />
                             </label>
-                            <div className="pay-invoice-actions">
+                            <div className={ui.payFormActions}>
                               <button
                                 type="button"
-                                className="ghost btn-with-icon"
+                                className={`${ui.btnGhost} ${ui.btnWithIcon}`}
                                 onClick={() => setPayInvoice(null)}
                               >
-                                <X className="btn-icon" aria-hidden />
+                                <X className={ui.btnIcon} aria-hidden />
                                 <span>Voltar</span>
                               </button>
                               <button
                                 type="submit"
                                 disabled={!canSubmitPayInvoice || submittingPayInvoice}
-                                className="btn-with-icon"
+                                className={ui.btnWithIcon}
                               >
                                 {submittingPayInvoice ? (
-                                  <Loader2 className="btn-icon icon-spin" aria-hidden />
+                                  <Loader2 className={ui.btnIconSpin} aria-hidden />
                                 ) : (
-                                  <Check className="btn-icon" aria-hidden />
+                                  <Check className={ui.btnIcon} aria-hidden />
                                 )}
                                 <span>{submittingPayInvoice ? 'Registrando…' : 'Registrar'}</span>
                               </button>
@@ -1845,65 +1965,60 @@ function Dashboard() {
                         ) : (
                           <button
                             type="button"
-                            className="ghost pay-invoice-open btn-with-icon"
+                            className={`${ui.btnGhost} ${ui.payOpen} ${ui.btnWithIcon}`}
                             onClick={() => openPayInvoice(a.id)}
                           >
-                            <CreditCard className="btn-icon" aria-hidden />
+                            <CreditCard className={ui.btnIcon} aria-hidden />
                             <span>Pagar fatura</span>
                           </button>
                         )}
                       </>
                     ) : (
                       <div
-                        className={
-                          (balancesByAccountId[a.id] ?? 0) >= 0
-                            ? 'account-balance positive'
-                            : 'account-balance negative'
-                        }
+                        className={`${ui.accountBalance} ${
+                          (balancesByAccountId[a.id] ?? 0) >= 0 ? ui.positive : ui.negative
+                        }`}
                       >
                         Saldo: {formatCents(balancesByAccountId[a.id] ?? 0)}
                       </div>
                     )}
                   </div>
-                  <div className="item-aside">
-                    <span
-                      className="item-aside-meta muted"
-                      title={ACCOUNT_TYPE_LABEL[a.type]}
-                    >
+                  <div className={a.type === 'credit_card' ? ui.itemAsideTall : ui.itemAside}>
+                    <span className={ui.itemAsideMeta} title={ACCOUNT_TYPE_LABEL[a.type]}>
                       {ACCOUNT_TYPE_LABEL[a.type]}
                     </span>
-                    <div className="itemActions">
+                    <div className={ui.itemActions}>
                       <button
                         type="button"
-                        className="ghost icon-btn"
+                        className={`${ui.btnGhost} ${ui.btnIconAsideGhost}`}
                         onClick={() => {
                           void beginEditAccount(a)
                         }}
                         aria-label={`Editar conta ${a.name}`}
                         title="Editar"
                       >
-                        <Pencil className="btn-icon" aria-hidden />
+                        <Pencil className={ui.btnIcon} aria-hidden />
                       </button>
                       {!a.isDefault ? (
                         <button
                           type="button"
-                          className="ghost icon-btn"
+                          className={`${ui.btnGhost} ${ui.btnIconAsideGhost}`}
                           onClick={() => void handleSetDefaultAccount(a.id)}
                           aria-label="Definir como conta padrão"
                           title="Conta padrão"
                         >
-                          <Star className="btn-icon" aria-hidden />
+                          <Star className={ui.btnIcon} aria-hidden />
                         </button>
                       ) : null}
                       <button
                         type="button"
-                        className="danger icon-btn"
+                        className={`${ui.btnDanger} ${ui.btnIconAsideDanger}`}
                         disabled={accounts.length <= 1}
                         onClick={() => void requestArchiveAccount(a.id, a.name)}
                         aria-label={`Arquivar conta ${a.name}`}
                         title="Arquivar"
                       >
-                        <Archive className="btn-icon" aria-hidden />
+                        <Archive className={ui.btnIcon} aria-hidden />
                       </button>
                     </div>
                   </div>
@@ -1913,76 +2028,71 @@ function Dashboard() {
           )}
 
           {archivedAccounts.length > 0 ? (
-            <details className="archived-accounts">
+            <details className={ui.archivedDetails}>
               <summary>
-                Contas arquivadas <span className="muted">({archivedAccounts.length})</span>
+                Contas arquivadas <span className={ui.muted}>({archivedAccounts.length})</span>
               </summary>
-              <ul className="list accounts-list">
+              <ul className={ui.list}>
                 {archivedAccounts.map((a: Account) => (
                   <li
                     key={a.id}
-                    className={
-                      a.type === 'credit_card'
-                        ? 'item item-archived item-row-card item-row-card--tall'
-                        : 'item item-archived item-row-card'
-                    }
+                    className={`${ui.item} ${ui.itemArchived} ${ui.itemRow} ${
+                      a.type === 'credit_card' ? ui.itemRowTall : ''
+                    }`}
                   >
-                    <div className="itemMain">
-                      <div className="item-head">
-                        <div className="item-head-main">
+                    <div className={ui.itemMain}>
+                      <div className={ui.itemHead}>
+                        <div className={ui.itemHeadMain}>
                           <strong>{a.name}</strong>
-                          {a.isDefault ? <span className="tag">Padrão</span> : null}
+                          {a.isDefault ? <span className={ui.tag}>Padrão</span> : null}
                         </div>
                       </div>
                       {a.type === 'credit_card' ? (
                         <>
-                          <div className="account-fatura-label muted">Fatura ({faturaMesLabel})</div>
-                          <div className="account-payable-amount account-balance--compact">
+                          <div className={`${ui.accountFatura} ${ui.muted}`}>Fatura ({faturaMesLabel})</div>
+                          <div className={`${ui.accountPayable} ${ui.accountBalanceCompact}`}>
                             A pagar: {formatCents(creditCardPayableByAccountId[a.id] ?? 0)}
                           </div>
-                          <div className="account-balance account-balance--subtle muted account-balance--compact">
+                          <div
+                            className={`${ui.accountBalanceSubtle} ${ui.muted} ${ui.accountBalanceCompact}`}
+                          >
                             Saldo (contábil): {formatCents(balancesByAccountId[a.id] ?? 0)}
                           </div>
                         </>
                       ) : (
                         <div
-                          className={
-                            (balancesByAccountId[a.id] ?? 0) >= 0
-                              ? 'account-balance account-balance--compact positive'
-                              : 'account-balance account-balance--compact negative'
-                          }
+                          className={`${ui.accountBalance} ${ui.accountBalanceCompact} ${
+                            (balancesByAccountId[a.id] ?? 0) >= 0 ? ui.positive : ui.negative
+                          }`}
                         >
                           Saldo: {formatCents(balancesByAccountId[a.id] ?? 0)}
                         </div>
                       )}
                     </div>
-                    <div className="item-aside">
-                      <span
-                        className="item-aside-meta muted"
-                        title={ACCOUNT_TYPE_LABEL[a.type]}
-                      >
+                    <div className={a.type === 'credit_card' ? ui.itemAsideTall : ui.itemAside}>
+                      <span className={ui.itemAsideMeta} title={ACCOUNT_TYPE_LABEL[a.type]}>
                         {ACCOUNT_TYPE_LABEL[a.type]}
                       </span>
-                      <div className="itemActions">
+                      <div className={ui.itemActions}>
                         <button
                           type="button"
-                          className="ghost icon-btn"
+                          className={`${ui.btnGhost} ${ui.btnIconAsideGhost}`}
                           onClick={() => {
                             void beginEditAccount(a)
                           }}
                           aria-label={`Editar conta ${a.name}`}
                           title="Editar"
                         >
-                          <Pencil className="btn-icon" aria-hidden />
+                          <Pencil className={ui.btnIcon} aria-hidden />
                         </button>
                         <button
                           type="button"
-                          className="ghost icon-btn"
+                          className={`${ui.btnGhost} ${ui.btnIconAsideGhost}`}
                           onClick={() => void handleUnarchiveAccount(a.id)}
                           aria-label={`Restaurar conta ${a.name}`}
                           title="Restaurar"
                         >
-                          <Undo2 className="btn-icon" aria-hidden />
+                          <Undo2 className={ui.btnIcon} aria-hidden />
                         </button>
                       </div>
                     </div>
@@ -1998,45 +2108,47 @@ function Dashboard() {
       ) : null}
 
       {!showAccounts && showTxWorkspace ? (
-        <section className="grid">
+        <section className={ui.grid}>
           {renderTransactionFormCard()}
           {renderTransactionListCard()}
         </section>
       ) : null}
 
       {showAccounts && showTxWorkspace ? (
-        <section className="grid single">{renderTransactionListCard()}</section>
+        <section className={ui.gridSingle}>{renderTransactionListCard()}</section>
       ) : null}
 
       {toast ? (
-        <div className="toast-stack" role="status" aria-live="polite">
-          <div className={`toast toast-${toast.variant}`}>{toast.message}</div>
+        <div className={ui.toastStack} role="status" aria-live="polite">
+          <div className={toast.variant === 'success' ? ui.toastOk : ui.toastErr}>{toast.message}</div>
         </div>
       ) : null}
 
       {showScrollTop ? (
         <button
           type="button"
-          className="scroll-top-btn"
+          className={ui.scrollTop}
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           aria-label="Voltar ao topo"
           title="Topo"
           style={showPwaInstallChrome ? { bottom: '5.75rem' } : undefined}
         >
-          <ArrowUp className="btn-icon" aria-hidden />
+          <ArrowUp className={ui.btnIcon} aria-hidden />
         </button>
       ) : null}
 
       {showPwaInstallChrome ? (
-        <div className="pwa-install-bar" role="region" aria-label="Instalar aplicativo">
-          <p>Adicione à tela inicial para abrir mais rápido, como um app.</p>
-          <div className="pwa-install-actions">
-            <button type="button" className="ghost btn-with-icon" onClick={dismissPwaInstall}>
-              <X className="btn-icon" aria-hidden />
+        <div className={ui.pwaBar} role="region" aria-label="Instalar aplicativo">
+          <p className={ui.pwaBarText}>
+            Adicione à tela inicial para abrir mais rápido, como um app.
+          </p>
+          <div className={ui.pwaActions}>
+            <button type="button" className={`${ui.btnGhost} ${ui.btnWithIcon}`} onClick={dismissPwaInstall}>
+              <X className={ui.btnIcon} aria-hidden />
               <span>Agora não</span>
             </button>
-            <button type="button" className="btn-with-icon" onClick={() => void onPwaInstallClick()}>
-              <Download className="btn-icon" aria-hidden />
+            <button type="button" className={ui.btnWithIcon} onClick={() => void onPwaInstallClick()}>
+              <Download className={ui.btnIcon} aria-hidden />
               <span>Instalar</span>
             </button>
           </div>
@@ -2045,53 +2157,53 @@ function Dashboard() {
 
       {confirmDialog ? (
         <div
-          className="modal-root"
+          className={ui.modalRoot}
           role="presentation"
           onClick={(e) => {
             if (e.target === e.currentTarget) dismissConfirmDialog()
           }}
         >
           <div
-            className="modal-panel"
+            className={ui.modalPanel}
             role="dialog"
             aria-modal="true"
             aria-labelledby={confirmTitleId}
             aria-describedby={confirmDescId}
             onKeyDown={onConfirmDialogKeyDown}
           >
-            <h2 id={confirmTitleId} className="modal-title">
+            <h2 id={confirmTitleId} className={ui.modalTitle}>
               {confirmDialog.kind === 'delete-transaction'
                 ? 'Excluir transação?'
                 : 'Arquivar conta?'}
             </h2>
-            <p id={confirmDescId} className="modal-desc">
+            <p id={confirmDescId} className={ui.modalDesc}>
               {confirmDialog.kind === 'delete-transaction'
                 ? 'Esta ação não pode ser desfeita. A transação será removida permanentemente.'
                 : `Arquivar a conta “${confirmDialog.displayName}”? Você pode restaurá-la depois em contas arquivadas.`}
             </p>
-            <div className="modal-actions">
+            <div className={ui.modalActions}>
               <button
                 ref={confirmCancelRef}
                 type="button"
-                className="ghost btn-with-icon"
+                className={`${ui.btnGhost} ${ui.btnWithIcon}`}
                 onClick={dismissConfirmDialog}
               >
-                <X className="btn-icon" aria-hidden />
+                <X className={ui.btnIcon} aria-hidden />
                 <span>Voltar</span>
               </button>
               <button
                 type="button"
                 className={
                   confirmDialog.kind === 'delete-transaction'
-                    ? 'danger btn-with-icon'
-                    : 'btn-with-icon'
+                    ? `${ui.btnDanger} ${ui.btnWithIcon}`
+                    : ui.btnWithIcon
                 }
                 onClick={() => void handleConfirmDialogPrimary()}
               >
                 {confirmDialog.kind === 'delete-transaction' ? (
-                  <Trash2 className="btn-icon" aria-hidden />
+                  <Trash2 className={ui.btnIcon} aria-hidden />
                 ) : (
-                  <Archive className="btn-icon" aria-hidden />
+                  <Archive className={ui.btnIcon} aria-hidden />
                 )}
                 <span>{confirmDialog.kind === 'delete-transaction' ? 'Excluir' : 'Arquivar'}</span>
               </button>
