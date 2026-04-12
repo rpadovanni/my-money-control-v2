@@ -6,7 +6,7 @@ import type {
   Transaction,
   TransactionsFilters,
   UpdateTransactionInput,
-} from '../../store/types/transactions'
+} from '../../../features/transactions/types/transactions'
 
 /** Repositório de transações: Dexie local ou Supabase remoto conforme sessão. */
 export const transactionsRepo = {

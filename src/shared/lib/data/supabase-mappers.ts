@@ -1,5 +1,5 @@
-import type { Account, AccountType } from '../../store/types/accounts'
-import type { Transaction, TransactionKind, TransactionType } from '../../store/types/transactions'
+import type { Account, AccountType } from '../../../features/accounts/types/accounts'
+import type { Transaction, TransactionKind, TransactionType } from '../../../features/transactions/types/transactions'
 
 export type AccountRow = {
   id: string

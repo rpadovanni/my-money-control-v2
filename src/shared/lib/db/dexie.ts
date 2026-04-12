@@ -1,8 +1,8 @@
 import Dexie, { type Table } from 'dexie'
 import { nowTimestampISO } from '../dates'
-import type { Account } from '../../store/types/accounts'
-import type { CategoryRecord } from '../../store/types/categories'
-import type { Transaction } from '../../store/types/transactions'
+import type { Account } from '../../../features/accounts/types/accounts'
+import type { CategoryRecord } from '../../../features/categories/types/category'
+import type { Transaction } from '../../../features/transactions/types/transactions'
 
 export class AppDB extends Dexie {
   transactions!: Table<Transaction, string>

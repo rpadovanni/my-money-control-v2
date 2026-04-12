@@ -1,12 +1,11 @@
-import type { StateCreator } from 'zustand'
-import { categoriesRepo } from '../../lib/data/categories.gateway'
-import { transactionsRepo } from '../../lib/data/transactions.gateway'
-import type { StoreState } from '../store-state'
-import type { TransactionCategory } from '../types/transactions'
+import { create } from 'zustand'
+import { categoriesRepo } from '../../../shared/lib/data/categories.gateway'
+import { transactionsRepo } from '../../../shared/lib/data/transactions.gateway'
+import type { Category } from '../types/category'
 
 export interface CategoriesSliceState {
   ready: boolean
-  items: TransactionCategory[]
+  items: Category[]
   /** Definido quando a inicialização remota falha (ex.: tabela ausente no Supabase). */
   initError: string | null
 }
@@ -18,9 +17,9 @@ export interface CategoriesSliceActions {
   deleteCategory: (id: string) => Promise<void>
 }
 
-export type CategoriesSlice = { categories: CategoriesSliceState } & CategoriesSliceActions
+export type CategoriesStore = { categories: CategoriesSliceState } & CategoriesSliceActions
 
-function toItem(r: { id: string; label: string; system: boolean }): TransactionCategory {
+function toItem(r: { id: string; label: string; system: boolean }): Category {
   return { id: r.id, label: r.label, system: r.system }
 }
 
@@ -41,7 +40,7 @@ function mapCategoriesInitError(e: unknown): string {
   return msg
 }
 
-export const createCategoriesSlice: StateCreator<StoreState, [], [], CategoriesSlice> = (set) => ({
+export const useCategoriesStore = create<CategoriesStore>()((set) => ({
   categories: {
     ready: false,
     items: [],
@@ -49,18 +48,16 @@ export const createCategoriesSlice: StateCreator<StoreState, [], [], CategoriesS
   },
 
   categoriesInit: async () => {
-    set((s) => ({ ...s, categories: { ...s.categories, ready: false } }))
+    set((s) => ({ categories: { ...s.categories, ready: false } }))
     try {
       await categoriesRepo.seedIfEmpty()
       const rows = await categoriesRepo.list()
       const items = rows.map(toItem)
       set((s) => ({
-        ...s,
         categories: { ...s.categories, items, ready: true, initError: null },
       }))
     } catch (e) {
       set((s) => ({
-        ...s,
         categories: {
           ...s.categories,
           items: [],
@@ -74,7 +71,6 @@ export const createCategoriesSlice: StateCreator<StoreState, [], [], CategoriesS
   addCategory: async (label) => {
     const row = await categoriesRepo.create(label)
     set((s) => ({
-      ...s,
       categories: {
         ...s.categories,
         initError: null,
@@ -86,7 +82,6 @@ export const createCategoriesSlice: StateCreator<StoreState, [], [], CategoriesS
   updateCategory: async (id, label) => {
     const row = await categoriesRepo.update(id, label)
     set((s) => ({
-      ...s,
       categories: {
         ...s.categories,
         initError: null,
@@ -106,7 +101,6 @@ export const createCategoriesSlice: StateCreator<StoreState, [], [], CategoriesS
     }
     await categoriesRepo.remove(id)
     set((s) => ({
-      ...s,
       categories: {
         ...s.categories,
         initError: null,
@@ -114,4 +108,4 @@ export const createCategoriesSlice: StateCreator<StoreState, [], [], CategoriesS
       },
     }))
   },
-})
+}))

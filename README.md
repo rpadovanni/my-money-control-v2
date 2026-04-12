@@ -64,7 +64,7 @@ pnpm preview
 - **Tipos**: `src/shared/store/types/transactions.ts`, `accounts.ts`
 - **IndexedDB (Dexie)**: `src/shared/lib/db/`
 - **Datas compartilhadas**: `src/shared/lib/dates.ts`
-- **Regras de saldo / resumo**: `src/shared/lib/transaction-net.ts`
+- **Regras de saldo / resumo**: `src/features/transactions/utils/transaction-net.ts`
 - **PWA**: `vite.config.ts` e registro em `src/main.tsx`
 - **Nuvem (a implementar):** `src/shared/lib/supabase/`, `src/shared/lib/data/` ou `repositories/` — ver `docs/supabase-cloud-mvp.md` (slices **não** importam o SDK)
 

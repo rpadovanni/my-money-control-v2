@@ -7,3 +7,10 @@ export interface CategoryRecord {
   createdAt: string
   updatedAt: string
 }
+
+/** Item da lista de categorias na UI (Dexie ou Supabase). */
+export interface Category {
+  id: string
+  label: string
+  system?: boolean
+}

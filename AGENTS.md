@@ -183,3 +183,9 @@ Manter o projeto:
 - fácil de evoluir
 
 Sem overengineering.
+
+---
+
+## Leitura adicional
+
+- [`docs/architecture.md`](docs/architecture.md) — notas sobre composição do dashboard, prop drilling e descoberta de decisões arquiteturais (sem repetir as regras deste arquivo).
