@@ -1,145 +1,143 @@
-# Project Rules - My Money Control v2
+# Regras do projeto — My Money Control v2
 
-Always follow AGENTS.md.
+Siga sempre o `AGENTS.md`.
 
-If there is a conflict, AGENTS.md is the source of truth.
-
----
-
-## Core Principles
-
-- Keep it simple
-- Avoid overengineering
-- Prefer clarity over flexibility
-- Prefer real usage over anticipation
+Em caso de conflito, o **`AGENTS.md`** prevalece.
 
 ---
 
-## Architecture Rules (MANDATORY)
+## Princípios centrais
 
-### Feature-first architecture
+- Simplicidade primeiro
+- Evitar overengineering
+- Clareza acima de flexibilidade excessiva
+- Preferir uso real a antecipação de cenários
 
-- **Feature code** (UI, estado, hooks, services **específicos** da feature) MUST live inside `src/features/<feature>/`
+---
+
+## Regras de arquitetura (obrigatórias)
+
+### Arquitetura orientada a features
+
+- **Código de feature** (UI, estado, hooks, serviços **específicos** da feature) deve ficar em `src/features/<feature>/`
 - **`src/app/`** — shell da SPA: rotas de alto nível, composição do dashboard, hooks de orquestração
-- **`src/domain/`** — contratos e funções **puras** do modelo partilhadas por `features/` e `shared/lib/` (ver AGENTS.md)
-- **`src/shared/`** — UI genérica, utils, `lib/` de infra e persistência **sem** regra de negócio de finanças
+- **`src/domain/`** — contratos e funções **puras** do modelo, compartilhados por `features/` e `shared/lib/` (detalhes no `AGENTS.md`)
+- **`src/shared/`** — UI genérica, utilitários, `lib/` de infra e persistência **sem** regra de negócio de finanças
 
-Features must be isolated and self-contained **em relação a outras features** (não importar `features/b` a partir de `features/a`).
+As features ficam isoladas e autocontidas **em relação a outras features** (não importar `features/b` a partir de `features/a`).
 
-Each feature may contain:
+Cada feature pode conter:
 
-- components
-- hooks
-- store (if needed)
-- services
-- types (muitas vezes reexports de `domain/` + tipos só de UI)
-
----
-
-### Feature isolation
-
-- NEVER import one feature into another
-- Cross-feature communication must happen via:
-  - `shared/` (generic only)
-  - `domain/` (shared model contracts / pure functions — not a “feature import”)
-  - services or `app/` wiring (e.g. startup coordinators)
-
-### Domain layer (`src/domain/`)
-
-- Put **types** and **pure functions** here when both **`shared/lib`** (repos, gateways, mappers) and **`features/`** need the same definitions
-- **`shared/lib` MUST NOT import `features/`** — use `domain/` for that shared slice
-- Do NOT put React, Zustand, I/O, or Supabase/Dexie clients in `domain/`
+- `components/`
+- `hooks/`
+- `store/` (quando fizer sentido)
+- `services/`
+- `types/` (muitas vezes reexporta de `domain/` + tipos só de UI)
 
 ---
 
-### Shared usage
+### Isolamento entre features
 
-- Only move code to `shared` if:
-  - Used by 2+ features
-  - Domain-agnostic
+- **Proibido** importar uma feature a partir de outra
+- Comunicação ou compartilhamento entre features deve passar por:
+  - `shared/` (apenas código genérico)
+  - `domain/` (contratos do modelo e funções puras — não conta como “import de outra feature”)
+  - serviços bem definidos ou wiring em `app/` (ex.: coordenadores no startup)
 
-- DO NOT place business logic in shared (finance model types / pure rules → **`domain/`**)
-- DO NOT place shared finance contracts in `shared/` just because `shared/lib` uses them — **`domain/`** exists for that
+### Camada `domain/` (`src/domain/`)
 
----
-
-### State management (Zustand)
-
-- Prefer state per feature
-- Global state ONLY for:
-  - auth
-  - app-wide settings
-
-- NEVER create a large centralized store
+- Colocar aqui **tipos** e **funções puras** quando **`shared/lib`** (repos, gateways, mappers) e **`features/`** precisarem das mesmas definições
+- **`shared/lib` não pode importar `features/`** — usar `domain/` para esse pedaço compartilhado
+- **Não** colocar em `domain/`: React, Zustand, I/O, nem clientes Supabase/Dexie
 
 ---
 
-### Services layer
+### Uso de `shared/`
 
-- Services handle:
-  - Supabase (remote)
-  - Dexie (local)
-  - data logic
+- Só mover código para `shared` se:
+  - for usado por **2+ features**, e
+  - for **agnóstico de domínio** (sem regra de negócio de finanças)
 
-- Services MUST NOT depend on React
+- **Não** colocar regra de negócio em `shared` (tipos do modelo financeiro / regras puras → **`domain/`**)
+- **Não** colocar contratos financeiros compartilhados em `shared/` só porque `shared/lib` os usa — para isso existe **`domain/`**
 
-- DO NOT use Supabase directly inside components or stores
+---
+
+### Estado (Zustand)
+
+- Preferir estado **por feature**
+- Estado global **somente** quando necessário:
+  - autenticação
+  - configurações de app
+
+- **Evitar** store global monolítica grande demais
+
+---
+
+### Camada de serviços
+
+Os serviços cuidam de:
+
+- Supabase (remoto)
+- Dexie (local)
+- lógica de dados
+
+- Serviços **não podem** depender de React
+- **Não** usar Supabase direto dentro de componentes ou stores
 
 ---
 
 ### Hooks
 
-- Must encapsulate logic
-- Must not contain UI concerns
+- Encapsulam lógica
+- **Não** misturam preocupações de UI
 
 ---
 
-### Components
+### Componentes
 
-- Must be presentational when possible
-- MUST NOT fetch data directly
-
----
-
-### Data flow
-
-UI → hooks → store → services / gateways (`shared/lib`) → (api/local). Shared contracts: **`domain/`** (no I/O).
+- Preferir componentes apresentacionais quando possível
+- **Não** buscar dados direto no componente (sem passar pela cadeia definida no projeto)
 
 ---
 
-## Supabase Rules
+### Fluxo de dados
 
-- Follow `docs/supabase-cloud-mvp.md`
-- Supabase access must be isolated in services/lib
-- Respect RLS (never trust frontend only)
+UI → hooks → store → serviços / gateways (`shared/lib`) → (API/local). Contratos compartilhados: **`domain/`** (sem I/O).
 
 ---
 
-## Anti-patterns (FORBIDDEN)
+## Regras Supabase
 
-- Centralized global store
-- Feature-to-feature imports
-- `shared/lib` importing `features/`
-- Business logic inside shared (finance rules → `domain/` or feature services)
-- Fetching data inside components
-- Over-abstraction without real use
+- Seguir `docs/supabase-cloud-mvp.md`
+- Acesso ao Supabase isolado em `services` / `shared/lib` conforme o desenho do repo
+- Respeitar RLS (nunca confiar só no frontend)
 
 ---
 
-## Decision Guidelines
+## Anti-padrões (proibidos)
 
-When in doubt:
-
-- Prefer duplication over premature abstraction
-- Prefer feature over shared
-- Prefer simple over generic
+- Store global centralizada gigante
+- Import de feature em feature
+- `shared/lib` importando `features/`
+- Regra de negócio de finanças dentro de `shared` (regras → `domain/` ou serviços da feature)
+- Fetch de dados direto em componente
+- Abstração sem uso real
 
 ---
 
-## Enforcement
+## Diretrizes quando houver dúvida
 
-If a request violates these rules:
+- Preferir duplicação a abstração prematura
+- Preferir código na feature a código genérico em `shared`
+- Preferir solução simples a solução “genérica demais”
 
-- DO NOT follow blindly
-- Suggest a compliant alternative
-- Explain why it violates the architecture
+---
+
+## Aplicação
+
+Se um pedido violar estas regras:
+
+- **Não** seguir cegamente
+- Sugerir alternativa compatível
+- Explicar por que fere a arquitetura
