@@ -16,7 +16,8 @@ import {
   formatMonthYearForDisplay,
   todayISODate,
 } from "../../../shared/lib/dates";
-import { errMessage, formatCents } from "../../../shared/utils/money-format";
+import { formatCents } from "../../../shared/utils/money-format";
+import { errMessage } from "../../../shared/utils/error-message";
 import { Input } from "../../../shared/components/ui/Input";
 import { Select } from "../../../shared/components/ui/Select";
 import { useAccountsStore } from "../store/accounts.store";

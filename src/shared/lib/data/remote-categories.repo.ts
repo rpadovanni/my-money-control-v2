@@ -1,7 +1,7 @@
 import { nowTimestampISO } from '../dates'
 import { DEFAULT_CATEGORY_SEEDS } from '../db/category-seed'
 import { requireRemote } from './remote-context'
-import type { CategoryRecord } from '../../../features/categories/types/category'
+import type { CategoryRecord } from '../../../domain/categories/types'
 
 type CategoryRow = {
   user_id: string

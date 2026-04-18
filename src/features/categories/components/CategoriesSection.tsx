@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Check, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
-import { errMessage } from "../../../shared/utils/money-format";
+import { errMessage } from "../../../shared/utils/error-message";
 import { Input } from "../../../shared/components/ui/Input";
 import { useCategoriesStore } from "../store/categories.store";
 

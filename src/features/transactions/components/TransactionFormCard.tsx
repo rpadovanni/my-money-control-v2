@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Loader2, Plus, X } from "lucide-react";
 import { todayISODate } from "../../../shared/lib/dates";
-import { errMessage } from "../../../shared/utils/money-format";
+import { errMessage } from "../../../shared/utils/error-message";
 import { Input } from "../../../shared/components/ui/Input";
 import { Select } from "../../../shared/components/ui/Select";
 import { useTransactionsStore } from "../store/transactions.store";

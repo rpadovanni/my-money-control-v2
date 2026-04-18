@@ -1,6 +1,6 @@
 import { nowTimestampISO } from '../dates'
 import { db } from './dexie'
-import type { Account, NewAccountInput, UpdateAccountInput } from '../../../features/accounts/types/accounts'
+import type { Account, NewAccountInput, UpdateAccountInput } from '../../../domain/accounts/types'
 
 export class AccountsRepository {
   async list(opts?: { includeArchived?: boolean }): Promise<Account[]> {

@@ -1,20 +1,14 @@
-/**
- * Dependência intencional `shared/lib` → `features/transactions`:
- * - `applyTransactionToBalanceMap` e os tipos `Transaction` mantêm a mesma regra de saldo
- *   que a UI/feature, evitando duplicar lógica frágil entre Dexie e domínio.
- * - Rever se o projeto extrair uma camada de persistência por agregado ou gerar tipos
- *   a partir de schema partilhado (ex.: package interno de contratos).
- */
+/** Contratos e agregação de saldo: `src/domain/transactions`. */
 import { monthDayBounds, nowTimestampISO } from '../dates'
-import { applyTransactionToBalanceMap } from '../../../features/transactions/utils/transaction-net'
+import { applyTransactionToBalanceMap } from '../../../domain/transactions/transaction-net'
 import { db } from './dexie'
-import type { Account } from '../../../features/accounts/types/accounts'
+import type { Account } from '../../../domain/accounts/types'
 import type {
   NewTransactionInput,
   Transaction,
   TransactionsFilters,
   UpdateTransactionInput,
-} from '../../../features/transactions/types/transactions'
+} from '../../../domain/transactions/types'
 
 export class TransactionsRepository {
   async list(filters: TransactionsFilters): Promise<Transaction[]> {

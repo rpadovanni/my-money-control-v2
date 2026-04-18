@@ -1,11 +1,8 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Inbox, Pencil, Trash2, X } from "lucide-react";
 import { formatISODateForDisplay } from "../../../shared/lib/dates";
-import {
-  errMessage,
-  formatCents,
-  signedFormatCents,
-} from "../../../shared/utils/money-format";
+import { formatCents, signedFormatCents } from "../../../shared/utils/money-format";
+import { errMessage } from "../../../shared/utils/error-message";
 import { useTransactionsStore } from "../store/transactions.store";
 
 export type TxListAccountOption = { id: string; name: string };

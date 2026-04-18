@@ -1,7 +1,7 @@
 import { localAccountsRepo } from '../db/accounts.repo'
 import { isRemoteActive } from './data-source'
 import { remoteAccountsRepo } from './remote-accounts.repo'
-import type { Account, NewAccountInput, UpdateAccountInput } from '../../../features/accounts/types/accounts'
+import type { Account, NewAccountInput, UpdateAccountInput } from '../../../domain/accounts/types'
 
 /** Repositório de contas: Dexie quando não há sessão na nuvem; Supabase quando logado. */
 export const accountsRepo = {

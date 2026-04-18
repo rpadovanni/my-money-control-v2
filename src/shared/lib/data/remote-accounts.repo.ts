@@ -2,7 +2,7 @@ import { nowTimestampISO } from '../dates'
 import { requireRemote } from './remote-context'
 import type { AccountRow } from './supabase-mappers'
 import { accountToRow, rowToAccount } from './supabase-mappers'
-import type { Account, NewAccountInput, UpdateAccountInput } from '../../../features/accounts/types/accounts'
+import type { Account, NewAccountInput, UpdateAccountInput } from '../../../domain/accounts/types'
 
 export const remoteAccountsRepo = {
   async list(opts?: { includeArchived?: boolean }): Promise<Account[]> {
