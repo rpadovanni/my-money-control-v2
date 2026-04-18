@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
-import { ui } from '../../../shared/styles/dashboard-ui'
 import { useAuthStore } from '../store/auth.store'
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -19,10 +18,12 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
 
   if (status === 'idle' || status === 'loading') {
     return (
-      <div className={ui.container}>
-        <section className={ui.card}>
-          <p className={ui.muted}>Verificando sessão…</p>
-        </section>
+      <div className="mx-auto max-w-5xl p-4">
+        <div className="card border border-base-300 bg-base-100">
+          <div className="card-body">
+            <p className="text-base-content/70">Verificando sessão…</p>
+          </div>
+        </div>
       </div>
     )
   }

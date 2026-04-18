@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { Inbox, Pencil, Trash2, X } from 'lucide-react'
 import { formatISODateForDisplay } from '../../../shared/lib/dates'
-import { ui } from '../../../shared/styles/dashboard-ui'
 import { errMessage, formatCents, signedFormatCents } from '../../../shared/utils/money-format'
 import { useTransactionsStore } from '../store/transactions.store'
 
@@ -113,34 +112,36 @@ export function TransactionListCard({
 
   return (
     <>
-      <div className={ui.card}>
-        <h2 className={ui.cardTitle}>Transações</h2>
+      <div className="card border border-base-300 bg-base-100">
+        <div className="card-body">
+          <h2 className="card-title">Transações</h2>
         {rows.length === 0 ? (
-          <div className={ui.emptyState}>
-            <Inbox className={ui.emptyIcon} aria-hidden />
-            <p className={ui.emptyTitle}>Nenhuma transação neste período</p>
-            <p className={ui.muted}>
+          <div className="py-6 text-center">
+            <Inbox className="mx-auto size-12 opacity-40" aria-hidden />
+            <p className="mt-2 font-semibold">Nenhuma transação neste período</p>
+            <p className="text-base-content/70">
               Ajuste mês, conta ou tipo nos filtros — ou inclua um lançamento{' '}
               {transactionsRouteActive ? 'no formulário ao lado' : 'no formulário acima'}.
             </p>
           </div>
         ) : (
-          <ul className={ui.list}>
+          <ul className="mt-2 space-y-2">
             {rows.map((t) => (
-              <li key={t.id} className={`${ui.item} ${ui.itemRow}`}>
-                <div className={ui.itemMain}>
-                  <div className={ui.txAmount}>
+              <li key={t.id} className="rounded-box border border-base-300 bg-base-100 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="leading-snug [&_strong]:text-[1.05rem]">
                     {t.kind === 'opening_balance' ? (
-                      <strong className={ui.neutral}>{signedFormatCents(t.amountCents)}</strong>
+                      <strong className="text-info">{signedFormatCents(t.amountCents)}</strong>
                     ) : t.type === 'transfer' ? (
-                      <strong className={ui.neutral}>↔ {formatCents(t.amountCents)}</strong>
+                      <strong className="text-info">↔ {formatCents(t.amountCents)}</strong>
                     ) : (
-                      <strong className={t.type === 'income' ? ui.positive : ui.negative}>
+                      <strong className={t.type === 'income' ? 'text-success' : 'text-error'}>
                         {t.type === 'income' ? '+' : '−'} {formatCents(t.amountCents)}
                       </strong>
                     )}
                   </div>
-                  <div className={ui.txDetail}>
+                  <div className="mt-1 text-sm text-base-content/70">
                     {t.kind === 'opening_balance' ? (
                       <>Saldo inicial • {accountName(t.accountId)}</>
                     ) : t.type === 'transfer' ? (
@@ -158,73 +159,51 @@ export function TransactionListCard({
                     )}
                   </div>
                 </div>
-                <div className={ui.itemAside}>
-                  <span className={ui.itemAsideMeta}>{formatISODateForDisplay(t.date)}</span>
-                  <div className={ui.itemActions}>
+                <div className="flex shrink-0 flex-col items-end gap-2">
+                  <span className="text-xs text-base-content/60">{formatISODateForDisplay(t.date)}</span>
+                  <div className="flex items-center gap-1">
                     <button
                       type="button"
-                      className={`${ui.btnGhost} ${ui.btnIconAsideGhost}`}
+                      className="btn btn-ghost btn-sm btn-square"
                       onClick={() => setEditingId(t.id)}
                       aria-label="Editar transação"
                       title="Editar"
                     >
-                      <Pencil className={ui.btnIcon} aria-hidden />
+                      <Pencil className="size-4" aria-hidden />
                     </button>
                     <button
                       type="button"
-                      className={`${ui.btnDanger} ${ui.btnIconAsideDanger}`}
+                      className="btn btn-outline btn-error btn-sm btn-square"
                       onClick={() => void requestDeleteTransaction(t.id)}
                       aria-label="Excluir transação"
                       title="Excluir"
                     >
-                      <Trash2 className={ui.btnIcon} aria-hidden />
+                      <Trash2 className="size-4" aria-hidden />
                     </button>
                   </div>
                 </div>
+              </div>
               </li>
             ))}
           </ul>
         )}
+        </div>
       </div>
 
       {deleteConfirmTransactionId ? (
-        <div
-          className={ui.modalRoot}
-          role="presentation"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) dismissDeleteConfirm()
-          }}
-        >
-          <div
-            className={ui.modalPanel}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={confirmTitleId}
-            aria-describedby={confirmDescId}
-            onKeyDown={onConfirmDialogKeyDown}
-          >
-            <h2 id={confirmTitleId} className={ui.modalTitle}>
-              Excluir transação?
-            </h2>
-            <p id={confirmDescId} className={ui.modalDesc}>
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 p-4" role="presentation" onClick={(e) => { if (e.target === e.currentTarget) dismissDeleteConfirm() }}>
+          <div className="w-full max-w-[420px] rounded-box border border-base-300 bg-base-100 p-5 shadow" role="dialog" aria-modal="true" aria-labelledby={confirmTitleId} aria-describedby={confirmDescId} onKeyDown={onConfirmDialogKeyDown}>
+            <h2 id={confirmTitleId} className="mb-2.5 mt-0 text-lg font-bold">Excluir transação?</h2>
+            <p id={confirmDescId} className="mb-4 mt-0 text-sm text-base-content/70">
               Esta ação não pode ser desfeita. A transação será removida permanentemente.
             </p>
-            <div className={ui.modalActions}>
-              <button
-                ref={confirmCancelRef}
-                type="button"
-                className={`${ui.btnGhost} ${ui.btnWithIcon}`}
-                onClick={dismissDeleteConfirm}
-              >
-                <X className={ui.btnIcon} aria-hidden />
+            <div className="flex flex-wrap justify-end gap-2">
+              <button ref={confirmCancelRef} type="button" className="btn btn-ghost" onClick={dismissDeleteConfirm}>
+                <X className="size-4" aria-hidden />
                 <span>Voltar</span>
               </button>
-              <button
-                type="button"
-                className={`${ui.btnDanger} ${ui.btnWithIcon}`}
-                onClick={() => void handleDeleteConfirmPrimary()}
-              >
-                <Trash2 className={ui.btnIcon} aria-hidden />
+              <button type="button" className="btn btn-outline btn-error" onClick={() => void handleDeleteConfirmPrimary()}>
+                <Trash2 className="size-4" aria-hidden />
                 <span>Excluir</span>
               </button>
             </div>

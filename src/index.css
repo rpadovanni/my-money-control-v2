@@ -1,169 +1,26 @@
 @import "tailwindcss";
-
-@theme {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-
-  --spacing-mmc-1: 8px;
-  --spacing-mmc-2: 12px;
-  --spacing-mmc-3: 16px;
-  --spacing-mmc-4: 24px;
-
-  --text-mmc-xs: 11px;
-  --text-mmc-sm: 12px;
-  --text-mmc-base: 14px;
-  --text-mmc-md: 16px;
-  --text-mmc-lg: 20px;
-  --text-mmc-xl: 28px;
-
-  --radius-mmc-input: 10px;
-  --radius-mmc-card: 14px;
-  --radius-mmc-panel: 12px;
-  --radius-mmc-toast: 12px;
-
-  --color-mmc-bg: #0b1220;
-  --color-mmc-fg: rgb(255 255 255 / 0.9);
-  --color-mmc-muted: rgb(255 255 255 / 0.68);
-  --color-mmc-hint: rgb(255 255 255 / 0.5);
-  --color-mmc-border: rgb(255 255 255 / 0.14);
-  --color-mmc-border-subtle: rgb(255 255 255 / 0.12);
-  --color-mmc-border-soft: rgb(255 255 255 / 0.1);
-  --color-mmc-surface: rgb(255 255 255 / 0.04);
-  --color-mmc-surface-2: rgb(255 255 255 / 0.06);
-  --color-mmc-input-bg: rgb(11 18 32 / 0.65);
-  --color-mmc-accent: rgb(120 163 255);
-  --color-mmc-accent-soft: rgb(120 163 255 / 0.18);
-  --color-mmc-accent-border: rgb(120 163 255 / 0.7);
-  --color-mmc-accent-border-strong: rgb(120 163 255 / 0.85);
-  --color-mmc-focus-outer: rgb(120 163 255 / 0.45);
-  --color-mmc-neutral: rgb(186 210 255);
-  --color-mmc-positive: rgb(122 255 180);
-  --color-mmc-negative: rgb(255 158 158);
-  --color-mmc-payable: rgb(255 200 140);
-  --color-mmc-danger-border: rgb(255 98 98 / 0.5);
-  --color-mmc-danger-fg: rgb(255 178 178);
-  --color-mmc-danger-icon-bg: rgb(255 70 70 / 0.09);
-  --color-mmc-danger-icon-border: rgb(255 120 120 / 0.38);
-  --color-mmc-notice-err-bg: rgb(180 60 60 / 0.22);
-  --color-mmc-notice-err-border: rgb(255 120 120 / 0.45);
-  --color-mmc-notice-err-text: rgb(255 210 210);
-  --color-mmc-offline-bg: rgb(120 70 40 / 0.92);
-  --color-mmc-offline-border: rgb(255 180 120 / 0.35);
-  --color-mmc-offline-text: rgb(255 235 210);
-  --color-mmc-toast-ok-bg: rgb(28 58 42 / 0.95);
-  --color-mmc-toast-ok-border: rgb(100 200 140 / 0.4);
-  --color-mmc-toast-ok-text: rgb(210 255 225);
-  --color-mmc-toast-err-bg: rgb(58 28 28 / 0.95);
-  --color-mmc-toast-err-border: rgb(255 120 120 / 0.4);
-  --color-mmc-toast-err-text: rgb(255 210 210);
-  --color-mmc-pwa-bg: rgb(15 22 38 / 0.96);
-  --color-mmc-pwa-border: rgb(120 163 255 / 0.35);
-  --color-mmc-scroll-bg: rgb(20 28 48 / 0.92);
-  --color-mmc-scroll-hover: rgb(35 48 78 / 0.95);
-  --color-mmc-modal-overlay: rgb(0 0 0 / 0.55);
-  --color-mmc-modal-panel: rgb(22 30 48 / 0.98);
-  --color-mmc-modal-border: rgb(255 255 255 / 0.16);
-  --color-mmc-item-bg: rgb(0 0 0 / 0.12);
-  --color-mmc-tag-border: rgb(120 163 255 / 0.42);
-  --color-mmc-tag-text: rgb(186 210 255 / 0.98);
-  --color-mmc-tag-bg: rgb(80 120 200 / 0.12);
-  --color-mmc-code-bg: rgb(0 0 0 / 0.22);
-  --color-mmc-pay-form-bg: rgb(0 0 0 / 0.2);
-  --color-mmc-empty-icon: rgb(186 210 255 / 0.9);
-  --color-mmc-nav-active-glow: rgb(120 163 255 / 0.14);
-}
-
-@keyframes mmc-toast-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+@plugin "daisyui" {
+  themes: bumblebee --default;
 }
 
 @layer base {
   :root {
-    color-scheme: dark;
     font-synthesis: none;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
+  #root {
+    @apply min-h-screen;
+  }
+
   html {
-    @apply bg-mmc-bg font-sans text-mmc-base font-normal text-mmc-fg antialiased;
+    @apply bg-base-100 font-sans text-base-content font-normal antialiased;
     line-height: 1.4;
   }
 
   body {
     @apply m-0 min-h-screen;
-  }
-
-  #root {
-    @apply min-h-screen;
-  }
-
-  h1 {
-    @apply m-0 text-mmc-xl font-bold tracking-tight;
-  }
-
-  h2 {
-    @apply m-0 text-mmc-md font-semibold;
-  }
-
-  h3 {
-    @apply m-0 text-mmc-base font-semibold;
-  }
-
-  :focus {
-    outline: none;
-  }
-
-  button:focus-visible,
-  a:focus-visible,
-  summary:focus-visible {
-    box-shadow: 0 0 0 3px var(--color-mmc-focus-outer);
-  }
-
-  button:focus:not(:focus-visible),
-  a:focus:not(:focus-visible) {
-    box-shadow: none;
-  }
-
-  label {
-    @apply flex flex-col gap-1.5;
-  }
-
-  label > span {
-    @apply text-mmc-sm text-mmc-muted;
-  }
-
-  input,
-  select {
-    @apply rounded-mmc-input border border-mmc-border bg-mmc-input-bg px-3 py-2.5 text-white outline-none;
-    font: inherit;
-  }
-
-  input:focus,
-  select:focus {
-    @apply border-mmc-accent-border;
-    box-shadow: 0 0 0 4px var(--color-mmc-accent-soft);
-  }
-
-  input:focus-visible,
-  select:focus-visible {
-    @apply border-mmc-accent;
-    box-shadow: 0 0 0 3px var(--color-mmc-focus-outer);
-  }
-
-  button {
-    @apply cursor-pointer rounded-mmc-input border border-mmc-border bg-mmc-surface-2 px-3 py-2.5 text-white;
-    font: inherit;
-  }
-
-  button:disabled {
-    @apply cursor-not-allowed opacity-60;
   }
 }
