@@ -4,6 +4,13 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Input } from "../../../shared/components/ui/Input";
 import { useAuthStore } from "../store/auth.store";
 
+/** Evita open redirect: só paths relativos à app (`/…`), não `//host` nem esquemas. */
+function safePostLoginRedirectPath(raw: string): string {
+  const t = raw.trim();
+  if (!t.startsWith("/") || t.startsWith("//")) return "/";
+  return t;
+}
+
 export function LoginPage() {
   const authStatus = useAuthStore((s) => s.auth.status);
   const authSession = useAuthStore((s) => s.auth.session);
@@ -26,7 +33,7 @@ export function LoginPage() {
   useEffect(() => {
     if (!authSession?.user) return;
     const params = new URLSearchParams(location.search);
-    const from = params.get("from") || "/";
+    const from = safePostLoginRedirectPath(params.get("from") || "/");
     navigate(from, { replace: true });
   }, [authSession?.user, location.search, navigate]);
 
