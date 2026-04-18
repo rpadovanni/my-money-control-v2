@@ -19,8 +19,12 @@ If there is a conflict, AGENTS.md is the source of truth.
 
 ### Feature-first architecture
 
-- All new code MUST live inside a feature
-- Features must be isolated and self-contained
+- **Feature code** (UI, estado, hooks, services **específicos** da feature) MUST live inside `src/features/<feature>/`
+- **`src/app/`** — shell da SPA: rotas de alto nível, composição do dashboard, hooks de orquestração
+- **`src/domain/`** — contratos e funções **puras** do modelo partilhadas por `features/` e `shared/lib/` (ver AGENTS.md)
+- **`src/shared/`** — UI genérica, utils, `lib/` de infra e persistência **sem** regra de negócio de finanças
+
+Features must be isolated and self-contained **em relação a outras features** (não importar `features/b` a partir de `features/a`).
 
 Each feature may contain:
 
@@ -28,7 +32,7 @@ Each feature may contain:
 - hooks
 - store (if needed)
 - services
-- types
+- types (muitas vezes reexports de `domain/` + tipos só de UI)
 
 ---
 
@@ -36,8 +40,15 @@ Each feature may contain:
 
 - NEVER import one feature into another
 - Cross-feature communication must happen via:
-  - shared (generic only)
-  - services
+  - `shared/` (generic only)
+  - `domain/` (shared model contracts / pure functions — not a “feature import”)
+  - services or `app/` wiring (e.g. startup coordinators)
+
+### Domain layer (`src/domain/`)
+
+- Put **types** and **pure functions** here when both **`shared/lib`** (repos, gateways, mappers) and **`features/`** need the same definitions
+- **`shared/lib` MUST NOT import `features/`** — use `domain/` for that shared slice
+- Do NOT put React, Zustand, I/O, or Supabase/Dexie clients in `domain/`
 
 ---
 
@@ -47,7 +58,8 @@ Each feature may contain:
   - Used by 2+ features
   - Domain-agnostic
 
-- DO NOT place business logic in shared
+- DO NOT place business logic in shared (finance model types / pure rules → **`domain/`**)
+- DO NOT place shared finance contracts in `shared/` just because `shared/lib` uses them — **`domain/`** exists for that
 
 ---
 
@@ -91,7 +103,7 @@ Each feature may contain:
 
 ### Data flow
 
-UI → hooks → services → (api/local)
+UI → hooks → store → services / gateways (`shared/lib`) → (api/local). Shared contracts: **`domain/`** (no I/O).
 
 ---
 
@@ -107,7 +119,8 @@ UI → hooks → services → (api/local)
 
 - Centralized global store
 - Feature-to-feature imports
-- Business logic inside shared
+- `shared/lib` importing `features/`
+- Business logic inside shared (finance rules → `domain/` or feature services)
 - Fetching data inside components
 - Over-abstraction without real use
 
