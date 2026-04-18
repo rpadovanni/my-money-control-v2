@@ -7,7 +7,3 @@ export function signedFormatCents(cents: number) {
   const sign = cents >= 0 ? '+' : '−'
   return sign + ' ' + formatCents(Math.abs(cents))
 }
-
-export function errMessage(e: unknown): string {
-  return e instanceof Error ? e.message : 'Algo deu errado. Tente de novo.'
-}

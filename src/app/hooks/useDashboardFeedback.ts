@@ -1,10 +1,10 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAccountsStore } from '../../features/accounts/store/accounts.store'
 import { useAuthStore } from '../../features/auth/store/auth.store'
 import { useCategoriesStore } from '../../features/categories/store/categories.store'
 import { useTransactionsStore } from '../../features/transactions/store/transactions.store'
 import { migrateLocalDexieToCloud } from '../../shared/lib/data/migrate-local-to-cloud'
-import { errMessage } from '../../shared/utils/money-format'
+import { errMessage } from '../../shared/utils/error-message'
 
 /**
  * Avisos globais (notice), toasts e fluxo de migração local→nuvem.
@@ -21,13 +21,25 @@ export function useDashboardFeedback() {
     null,
   )
   const toastSeq = useRef(0)
+  const toastTimeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set())
+
+  useEffect(() => {
+    const timeouts = toastTimeoutsRef.current
+    return () => {
+      for (const tid of timeouts) clearTimeout(tid)
+      timeouts.clear()
+    }
+  }, [])
+
   const pushToast = useCallback((variant: 'success' | 'error', message: string, durationMs?: number) => {
     const id = ++toastSeq.current
     setToast({ id, variant, message })
     const ms = durationMs ?? (variant === 'error' ? 5200 : 3200)
-    window.setTimeout(() => {
+    const tid = window.setTimeout(() => {
+      toastTimeoutsRef.current.delete(tid)
       setToast((t) => (t?.id === id ? null : t))
     }, ms)
+    toastTimeoutsRef.current.add(tid)
   }, [])
 
   const [migratingLocal, setMigratingLocal] = useState(false)

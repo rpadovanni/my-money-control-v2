@@ -1,11 +1,5 @@
-/**
- * Dependência intencional `shared/lib` → `features/transactions`:
- * - `applyTransactionToBalanceMap` e tipos alinhados ao domínio evitam duas implementações
- *   divergentes do efeito de cada transação nos saldos (local vs remoto).
- * - Reavaliar se no futuro os repositórios migrarem para dentro da feature ou existir um
- *   módulo neutro de contratos gerado a partir do schema.
- */
-import { applyTransactionToBalanceMap } from '../../../features/transactions/utils/transaction-net'
+/** Contratos e regra pura de saldo: `src/domain/transactions` (partilhado por repos e UI). */
+import { applyTransactionToBalanceMap } from '../../../domain/transactions/transaction-net'
 import { monthDayBounds, nowTimestampISO } from '../dates'
 import { requireRemote } from './remote-context'
 import type { AccountRow, TransactionRow } from './supabase-mappers'
@@ -15,7 +9,7 @@ import type {
   Transaction,
   TransactionsFilters,
   UpdateTransactionInput,
-} from '../../../features/transactions/types/transactions'
+} from '../../../domain/transactions/types'
 
 export const remoteTransactionsRepo = {
   async list(filters: TransactionsFilters): Promise<Transaction[]> {
