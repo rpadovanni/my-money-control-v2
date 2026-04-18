@@ -276,81 +276,103 @@ export function TransactionFormCard({
   return (
     <div className="card border border-base-300 bg-base-100">
       <div className="card-body">
-      <h2 className="card-title">
-        {editing
-          ? editing.kind === "opening_balance"
-            ? "Saldo inicial"
-            : editing.type === "transfer"
-              ? "Editar transferência"
-              : "Editar transação"
-          : "Nova transação"}
-      </h2>
-      <form className="grid grid-cols-1 gap-3 min-[640px]:grid-cols-2" onSubmit={onSubmit}>
-        {editing?.kind !== "opening_balance" ? (
-          <Select
-            label="Tipo"
-            value={form.type}
-            disabled={Boolean(editing)}
-            onChange={(e) => {
-              const t = e.target.value as TransactionType;
-              setForm((f) => ({
-                ...f,
-                type: t,
-                fromAccountId: t === "transfer" ? f.fromAccountId || defaultAccountId : "",
-                toAccountId: t === "transfer" ? f.toAccountId : "",
-                accountId: t !== "transfer" ? f.accountId || defaultAccountId : f.accountId,
-                category: t === "transfer" ? "transfer" : f.category === "transfer" ? "other" : f.category,
-              }));
-            }}
-          >
+        <h2 className="card-title">
+          {editing
+            ? editing.kind === "opening_balance"
+              ? "Saldo inicial"
+              : editing.type === "transfer"
+                ? "Editar transferência"
+                : "Editar transação"
+            : "Nova transação"}
+        </h2>
+        <form
+          className="grid grid-cols-1 gap-3 min-[640px]:grid-cols-2"
+          onSubmit={onSubmit}
+        >
+          {editing?.kind !== "opening_balance" ? (
+            <Select
+              label="Tipo"
+              value={form.type}
+              disabled={Boolean(editing)}
+              onChange={(e) => {
+                const t = e.target.value as TransactionType;
+                setForm((f) => ({
+                  ...f,
+                  type: t,
+                  fromAccountId:
+                    t === "transfer" ? f.fromAccountId || defaultAccountId : "",
+                  toAccountId: t === "transfer" ? f.toAccountId : "",
+                  accountId:
+                    t !== "transfer"
+                      ? f.accountId || defaultAccountId
+                      : f.accountId,
+                  category:
+                    t === "transfer"
+                      ? "transfer"
+                      : f.category === "transfer"
+                        ? "other"
+                        : f.category,
+                }));
+              }}
+            >
               <option value="expense">Despesa</option>
               <option value="income">Receita</option>
               <option value="transfer">Transferência</option>
-          </Select>
-        ) : null}
+            </Select>
+          ) : null}
 
-        <Input
-          ref={txFormAmountRef}
-          label="Valor (R$)"
-          inputMode="decimal"
-          autoComplete="off"
-          maxLength={24}
-          placeholder={editing?.kind === "opening_balance" ? "pode ser negativo" : "ex.: 25,90"}
-          title="Use ponto ou vírgula para centavos"
-          value={form.amount}
-          onChange={(e) =>
-            setForm((f) => ({
-              ...f,
-              amount: e.target.value.replace(",", ".").replace(/[^\d.-]/g, ""),
-            }))
-          }
-        />
+          <Input
+            ref={txFormAmountRef}
+            label="Valor (R$)"
+            inputMode="decimal"
+            autoComplete="off"
+            maxLength={24}
+            placeholder={
+              editing?.kind === "opening_balance"
+                ? "pode ser negativo"
+                : "ex.: 25,90"
+            }
+            title="Use ponto ou vírgula para centavos"
+            value={form.amount}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                amount: e.target.value
+                  .replace(",", ".")
+                  .replace(/[^\d.-]/g, ""),
+              }))
+            }
+          />
 
-        <Input
-          label="Data"
-          type="date"
-          value={form.date}
-          onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-        />
+          <Input
+            label="Data"
+            type="date"
+            value={form.date}
+            onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+          />
 
-        {editing?.kind !== "opening_balance" && form.type === "transfer" ? (
-          <>
-            <Select
-              label="De (origem)"
-              value={form.fromAccountId || defaultAccountId}
-              onChange={(e) => setForm((f) => ({ ...f, fromAccountId: e.target.value }))}
-            >
+          {editing?.kind !== "opening_balance" && form.type === "transfer" ? (
+            <>
+              <Select
+                label="De (origem)"
+                value={form.fromAccountId || defaultAccountId}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, fromAccountId: e.target.value }))
+                }
+              >
                 {accounts.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.name}
                   </option>
                 ))}
-            </Select>
-            <Select
-              label="Para (destino)"
-              value={form.toAccountId}
-              onChange={(e) => setForm((f) => ({ ...f, toAccountId: e.target.value }))}
-            >
+              </Select>
+              <Select
+                label="Para (destino)"
+                value={form.toAccountId}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, toAccountId: e.target.value }))
+                }
+              >
                 <option value="">Selecione…</option>
                 {accounts
                   .filter(
@@ -361,29 +383,33 @@ export function TransactionFormCard({
                       {a.name}
                     </option>
                   ))}
-            </Select>
-          </>
-        ) : null}
+              </Select>
+            </>
+          ) : null}
 
-        {editing?.kind !== "opening_balance" && form.type !== "transfer" ? (
-          <>
-            <Select
-              label="Conta"
-              value={form.accountId || defaultAccountId}
-              onChange={(e) => setForm((f) => ({ ...f, accountId: e.target.value }))}
-            >
+          {editing?.kind !== "opening_balance" && form.type !== "transfer" ? (
+            <>
+              <Select
+                label="Conta"
+                value={form.accountId || defaultAccountId}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, accountId: e.target.value }))
+                }
+              >
                 {accounts.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.name}
                   </option>
                 ))}
-            </Select>
+              </Select>
 
-            <Select
-              label="Categoria"
-              value={form.category}
-              onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-            >
+              <Select
+                label="Categoria"
+                value={form.category}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, category: e.target.value }))
+                }
+              >
                 {categories
                   .filter((c) => c.id !== "transfer")
                   .map((c) => (
@@ -391,37 +417,53 @@ export function TransactionFormCard({
                       {c.label}
                     </option>
                   ))}
-            </Select>
-          </>
-        ) : null}
+              </Select>
+            </>
+          ) : null}
 
-        {editing?.kind === "opening_balance" ? (
+          {editing?.kind === "opening_balance" ? (
+            <Input
+              rootClassName="col-span-full min-[640px]:col-span-2"
+              label="Conta"
+              readOnly
+              value={accountName(editing.accountId)}
+            />
+          ) : null}
+
           <Input
             rootClassName="col-span-full min-[640px]:col-span-2"
-            label="Conta"
-            readOnly
-            value={accountName(editing.accountId)}
+            label="Descrição (opcional)"
+            value={form.description}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, description: e.target.value }))
+            }
           />
-        ) : null}
 
-        <Input
-          rootClassName="col-span-full min-[640px]:col-span-2"
-          label="Descrição (opcional)"
-          value={form.description}
-          onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-        />
-
-        <div className="col-span-full flex justify-end gap-2 min-[640px]:col-span-2">
-          {editing ? (
-            <>
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => setEditingId(null)}
-              >
-                <X className="size-4" aria-hidden />
-                <span>Voltar</span>
-              </button>
+          <div className="col-span-full flex justify-end gap-2 min-[640px]:col-span-2">
+            {editing ? (
+              <>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => setEditingId(null)}
+                >
+                  <X className="size-4" aria-hidden />
+                  <span>Voltar</span>
+                </button>
+                <button
+                  type="submit"
+                  disabled={!canSubmit || submittingTx}
+                  className="btn btn-primary"
+                >
+                  {submittingTx ? (
+                    <Loader2 className="size-4 animate-spin" aria-hidden />
+                  ) : (
+                    <Check className="size-4" aria-hidden />
+                  )}
+                  <span>{submittingTx ? "Salvando…" : "Salvar"}</span>
+                </button>
+              </>
+            ) : (
               <button
                 type="submit"
                 disabled={!canSubmit || submittingTx}
@@ -430,27 +472,13 @@ export function TransactionFormCard({
                 {submittingTx ? (
                   <Loader2 className="size-4 animate-spin" aria-hidden />
                 ) : (
-                  <Check className="size-4" aria-hidden />
+                  <Plus className="size-4" aria-hidden />
                 )}
-                <span>{submittingTx ? "Salvando…" : "Salvar"}</span>
+                <span>{submittingTx ? "Salvando…" : "Incluir"}</span>
               </button>
-            </>
-          ) : (
-            <button
-              type="submit"
-              disabled={!canSubmit || submittingTx}
-              className="btn btn-primary"
-            >
-              {submittingTx ? (
-                <Loader2 className="size-4 animate-spin" aria-hidden />
-              ) : (
-                <Plus className="size-4" aria-hidden />
-              )}
-              <span>{submittingTx ? "Salvando…" : "Incluir"}</span>
-            </button>
-          )}
-        </div>
-      </form>
+            )}
+          </div>
+        </form>
       </div>
     </div>
   );

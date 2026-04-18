@@ -370,90 +370,42 @@ export function AccountsCard({
     <>
       <div className="card border border-base-300 bg-base-100">
         <div className="card-body">
-        <h2 className="card-title">Contas</h2>
-        <p className="text-sm text-base-content/70">
-          Saldo por conta = histórico completo. Em cartões, &quot;A pagar&quot;
-          usa sempre o <strong>mês civil atual</strong> (independente do filtro
-          da lista).
-        </p>
-        <div className={accountEdit ? "pointer-events-none opacity-60" : undefined}>
-          <form className="grid grid-cols-1 gap-3 min-[640px]:grid-cols-2" onSubmit={onSubmitAccount}>
-            <Input
-              rootClassName="col-span-full min-[640px]:col-span-2"
-              ref={accountFormNameRef}
-              label="Nome"
-              placeholder="ex.: Bradesco"
-              autoComplete="off"
-              maxLength={120}
-              value={accountForm.name}
-              onChange={(e) => setAccountForm((f) => ({ ...f, name: e.target.value }))}
-            />
-            <Select
-              label="Tipo"
-              value={accountForm.type}
-              onChange={(e) => setAccountForm((f) => ({ ...f, type: e.target.value as AccountType }))}
+          <h2 className="card-title">Contas</h2>
+          <p className="text-sm text-base-content/70">
+            Saldo por conta = histórico completo. Em cartões, &quot;A
+            pagar&quot; usa sempre o <strong>mês civil atual</strong>{" "}
+            (independente do filtro da lista).
+          </p>
+          <div
+            className={
+              accountEdit ? "pointer-events-none opacity-60" : undefined
+            }
+          >
+            <form
+              className="grid grid-cols-1 gap-3 min-[640px]:grid-cols-2"
+              onSubmit={onSubmitAccount}
             >
-                <option value="bank">Banco</option>
-                <option value="wallet">Carteira</option>
-                <option value="credit_card">Cartão de crédito</option>
-                <option value="other">Outro</option>
-            </Select>
-            <Input
-              label="Saldo inicial (opcional)"
-              inputMode="decimal"
-              placeholder="ex.: 1500 ou −200"
-              value={accountForm.openingBalance}
-              onChange={(e) => setAccountForm((f) => ({ ...f, openingBalance: e.target.value.replace(",", ".") }))}
-            />
-            <label className="label cursor-pointer justify-start gap-2.5">
-              <input
-                type="checkbox"
-                className="checkbox checkbox-primary"
-                checked={accountForm.makeDefault}
-                onChange={(e) =>
-                  setAccountForm((f) => ({
-                    ...f,
-                    makeDefault: e.target.checked,
-                  }))
-                }
-              />
-              <span className="label-text">Definir como conta padrão</span>
-            </label>
-            <div className="col-span-full flex justify-end min-[640px]:col-span-2">
-              <button
-                type="submit"
-                disabled={!canSubmitAccount || submittingAccount}
-                className="btn btn-primary"
-              >
-                {submittingAccount ? (
-                  <Loader2 className="size-4 animate-spin" aria-hidden />
-                ) : (
-                  <Plus className="size-4" aria-hidden />
-                )}
-                <span>{submittingAccount ? "Salvando…" : "Incluir conta"}</span>
-              </button>
-            </div>
-          </form>
-        </div>
-
-        {accountEdit ? (
-          <form className="mt-4 rounded-box border border-base-300 p-4" onSubmit={onSubmitAccountEdit}>
-            <h3 className="mb-2 text-base font-semibold">Editar conta</h3>
-            <p className="mb-3 text-sm text-base-content/70">
-              Ajuste nome, tipo ou saldo inicial. Deixe o saldo vazio para
-              remover o lançamento de saldo inicial.
-            </p>
-            <div className="grid grid-cols-1 gap-3 min-[640px]:grid-cols-2">
               <Input
                 rootClassName="col-span-full min-[640px]:col-span-2"
+                ref={accountFormNameRef}
                 label="Nome"
-                value={accountEdit.name}
-                onChange={(e) => setAccountEdit((f) => (f ? { ...f, name: e.target.value } : f))}
+                placeholder="ex.: Bradesco"
+                autoComplete="off"
+                maxLength={120}
+                value={accountForm.name}
+                onChange={(e) =>
+                  setAccountForm((f) => ({ ...f, name: e.target.value }))
+                }
               />
               <Select
                 label="Tipo"
-                value={accountEdit.type}
-                onChange={(e) => setAccountEdit((f) => (f ? { ...f, type: e.target.value as AccountType } : f))}
+                value={accountForm.type}
+                onChange={(e) =>
+                  setAccountForm((f) => ({
+                    ...f,
+                    type: e.target.value as AccountType,
+                  }))
+                }
               >
                 <option value="bank">Banco</option>
                 <option value="wallet">Carteira</option>
@@ -461,242 +413,278 @@ export function AccountsCard({
                 <option value="other">Outro</option>
               </Select>
               <Input
-                label="Saldo inicial"
+                label="Saldo inicial (opcional)"
                 inputMode="decimal"
-                placeholder="vazio = sem saldo inicial"
-                value={accountEdit.openingBalance}
+                placeholder="ex.: 1500 ou −200"
+                value={accountForm.openingBalance}
                 onChange={(e) =>
-                  setAccountEdit((f) => (f ? { ...f, openingBalance: e.target.value.replace(",", ".") } : f))
+                  setAccountForm((f) => ({
+                    ...f,
+                    openingBalance: e.target.value.replace(",", "."),
+                  }))
                 }
               />
-              <Input
-                label="Data do saldo inicial"
-                type="date"
-                value={accountEdit.openingDate}
-                onChange={(e) => setAccountEdit((f) => (f ? { ...f, openingDate: e.target.value } : f))}
-              />
-              <div className="col-span-full flex justify-end gap-2 min-[640px]:col-span-2">
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => setAccountEdit(null)}
-              >
-                <X className="size-4" aria-hidden />
-                <span>Voltar</span>
-              </button>
-              <button
-                type="submit"
-                disabled={!canSubmitAccountEdit || submittingAccountEdit}
-                className="btn btn-primary"
-              >
-                {submittingAccountEdit ? (
-                  <Loader2 className="size-4 animate-spin" aria-hidden />
-                ) : (
-                  <Check className="size-4" aria-hidden />
-                )}
-                <span>{submittingAccountEdit ? "Salvando…" : "Salvar"}</span>
-              </button>
-            </div>
-            </div>
-          </form>
-        ) : null}
-        {accounts.length === 0 ? (
-          <div className="py-6 text-center">
-            <WalletCards className="mx-auto size-12 opacity-40" aria-hidden />
-            <p className="mt-2 font-semibold">Nenhuma conta cadastrada</p>
-            <p className="text-base-content/70">
-              Crie uma conta (banco, carteira ou cartão) no formulário acima
-              para começar a lançar transações.
-            </p>
-          </div>
-        ) : (
-          <ul className="mt-4 space-y-2">
-            {accounts.map((a: Account) => (
-              <li key={a.id} className="rounded-box border border-base-300 bg-base-100 p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex min-w-0 flex-wrap items-center gap-2">
-                      <strong>{a.name}</strong>
-                      {a.isDefault ? <span className="badge badge-outline badge-primary">Padrão</span> : null}
-                    </div>
-                  </div>
-                  {a.type === "credit_card" ? (
-                    <>
-                      <div className="mt-2 text-xs text-base-content/70">
-                        Fatura ({faturaMesLabel})
-                      </div>
-                      <div className="mt-1 text-[15px] font-bold text-warning">
-                        A pagar:{" "}
-                        {formatCents(creditCardPayableByAccountId[a.id] ?? 0)}
-                      </div>
-                      <div className="mt-1 text-xs font-medium text-base-content/70">
-                        Saldo (contábil):{" "}
-                        {formatCents(balancesByAccountId[a.id] ?? 0)}
-                      </div>
-                      {payInvoice?.cardId === a.id ? (
-                        <form className="mt-3 grid grid-cols-1 gap-3 rounded-box border border-base-300 bg-base-100 p-3" onSubmit={onSubmitPayInvoice}>
-                          <Select label="Pagar de" value={payFromId} onChange={(e) => setPayFromId(e.target.value)}>
-                              {(accounts.filter(
-                                (x) =>
-                                  x.id !== a.id && x.type !== "credit_card",
-                              ).length > 0
-                                ? accounts.filter(
-                                    (x) =>
-                                      x.id !== a.id && x.type !== "credit_card",
-                                  )
-                                : accounts.filter((x) => x.id !== a.id)
-                              ).map((x) => (
-                                <option key={x.id} value={x.id}>
-                                  {x.name}
-                                </option>
-                              ))}
-                          </Select>
-                          <Input
-                            ref={payInvoiceAmountRef}
-                            label="Valor (R$)"
-                            inputMode="decimal"
-                            value={payAmount}
-                            onChange={(e) => setPayAmount(e.target.value.replace(",", "."))}
-                          />
-                          <Input
-                            label="Data"
-                            type="date"
-                            value={payDate}
-                            onChange={(e) => setPayDate(e.target.value)}
-                          />
-                          <div className="flex justify-end gap-2">
-                            <button
-                              type="button"
-                              className="btn btn-ghost"
-                              onClick={() => setPayInvoice(null)}
-                            >
-                              <X className="size-4" aria-hidden />
-                              <span>Voltar</span>
-                            </button>
-                            <button
-                              type="submit"
-                              disabled={
-                                !canSubmitPayInvoice || submittingPayInvoice
-                              }
-                              className="btn btn-primary"
-                            >
-                              {submittingPayInvoice ? (
-                                <Loader2 className="size-4 animate-spin" aria-hidden />
-                              ) : (
-                                <Check className="size-4" aria-hidden />
-                              )}
-                              <span>
-                                {submittingPayInvoice
-                                  ? "Registrando…"
-                                  : "Registrar"}
-                              </span>
-                            </button>
-                          </div>
-                        </form>
-                      ) : (
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-sm mt-2"
-                          onClick={() => openPayInvoice(a.id)}
-                        >
-                          <CreditCard className="size-4" aria-hidden />
-                          <span>Pagar fatura</span>
-                        </button>
-                      )}
-                    </>
+              <label className="label cursor-pointer justify-start gap-2.5">
+                <input
+                  type="checkbox"
+                  className="checkbox checkbox-primary"
+                  checked={accountForm.makeDefault}
+                  onChange={(e) =>
+                    setAccountForm((f) => ({
+                      ...f,
+                      makeDefault: e.target.checked,
+                    }))
+                  }
+                />
+                <span className="label-text">Definir como conta padrão</span>
+              </label>
+              <div className="col-span-full flex justify-end min-[640px]:col-span-2">
+                <button
+                  type="submit"
+                  disabled={!canSubmitAccount || submittingAccount}
+                  className="btn btn-primary"
+                >
+                  {submittingAccount ? (
+                    <Loader2 className="size-4 animate-spin" aria-hidden />
                   ) : (
-                    <div className={`mt-2 text-sm font-bold ${(balancesByAccountId[a.id] ?? 0) >= 0 ? "text-success" : "text-error"}`}>
-                      Saldo: {formatCents(balancesByAccountId[a.id] ?? 0)}
-                    </div>
+                    <Plus className="size-4" aria-hidden />
                   )}
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end gap-2">
-                    <span className="text-xs text-base-content/60" title={ACCOUNT_TYPE_LABEL[a.type]}>
-                      {ACCOUNT_TYPE_LABEL[a.type]}
+                  <span>
+                    {submittingAccount ? "Salvando…" : "Incluir conta"}
+                  </span>
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {accountEdit ? (
+            <form
+              className="mt-4 rounded-box border border-base-300 p-4"
+              onSubmit={onSubmitAccountEdit}
+            >
+              <h3 className="mb-2 text-base font-semibold">Editar conta</h3>
+              <p className="mb-3 text-sm text-base-content/70">
+                Ajuste nome, tipo ou saldo inicial. Deixe o saldo vazio para
+                remover o lançamento de saldo inicial.
+              </p>
+              <div className="grid grid-cols-1 gap-3 min-[640px]:grid-cols-2">
+                <Input
+                  rootClassName="col-span-full min-[640px]:col-span-2"
+                  label="Nome"
+                  value={accountEdit.name}
+                  onChange={(e) =>
+                    setAccountEdit((f) =>
+                      f ? { ...f, name: e.target.value } : f,
+                    )
+                  }
+                />
+                <Select
+                  label="Tipo"
+                  value={accountEdit.type}
+                  onChange={(e) =>
+                    setAccountEdit((f) =>
+                      f ? { ...f, type: e.target.value as AccountType } : f,
+                    )
+                  }
+                >
+                  <option value="bank">Banco</option>
+                  <option value="wallet">Carteira</option>
+                  <option value="credit_card">Cartão de crédito</option>
+                  <option value="other">Outro</option>
+                </Select>
+                <Input
+                  label="Saldo inicial"
+                  inputMode="decimal"
+                  placeholder="vazio = sem saldo inicial"
+                  value={accountEdit.openingBalance}
+                  onChange={(e) =>
+                    setAccountEdit((f) =>
+                      f
+                        ? {
+                            ...f,
+                            openingBalance: e.target.value.replace(",", "."),
+                          }
+                        : f,
+                    )
+                  }
+                />
+                <Input
+                  label="Data do saldo inicial"
+                  type="date"
+                  value={accountEdit.openingDate}
+                  onChange={(e) =>
+                    setAccountEdit((f) =>
+                      f ? { ...f, openingDate: e.target.value } : f,
+                    )
+                  }
+                />
+                <div className="col-span-full flex justify-end gap-2 min-[640px]:col-span-2">
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    onClick={() => setAccountEdit(null)}
+                  >
+                    <X className="size-4" aria-hidden />
+                    <span>Voltar</span>
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!canSubmitAccountEdit || submittingAccountEdit}
+                    className="btn btn-primary"
+                  >
+                    {submittingAccountEdit ? (
+                      <Loader2 className="size-4 animate-spin" aria-hidden />
+                    ) : (
+                      <Check className="size-4" aria-hidden />
+                    )}
+                    <span>
+                      {submittingAccountEdit ? "Salvando…" : "Salvar"}
                     </span>
-                    <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-sm btn-square"
-                      onClick={() => {
-                        void beginEditAccount(a);
-                      }}
-                      aria-label={`Editar conta ${a.name}`}
-                      title="Editar"
-                    >
-                      <Pencil className="size-4" aria-hidden />
-                    </button>
-                    {!a.isDefault ? (
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-sm btn-square"
-                        onClick={() => void handleSetDefaultAccount(a.id)}
-                        aria-label="Definir como conta padrão"
-                        title="Conta padrão"
-                      >
-                        <Star className="size-4" aria-hidden />
-                      </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      className="btn btn-outline btn-error btn-sm btn-square"
-                      disabled={accounts.length <= 1}
-                      onClick={() => void requestArchiveAccount(a.id, a.name)}
-                      aria-label={`Arquivar conta ${a.name}`}
-                      title="Arquivar"
-                    >
-                      <Archive className="size-4" aria-hidden />
-                    </button>
-                  </div>
+                  </button>
                 </div>
               </div>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {archivedAccounts.length > 0 ? (
-          <details className="mt-4">
-            <summary>
-              Contas arquivadas{" "}
-              <span className="text-base-content/70">({archivedAccounts.length})</span>
-            </summary>
-            <ul className="mt-2 space-y-2">
-              {archivedAccounts.map((a: Account) => (
-                <li key={a.id} className="rounded-box border border-base-300 bg-base-100 p-3 opacity-95">
+            </form>
+          ) : null}
+          {accounts.length === 0 ? (
+            <div className="py-6 text-center">
+              <WalletCards className="mx-auto size-12 opacity-40" aria-hidden />
+              <p className="mt-2 font-semibold">Nenhuma conta cadastrada</p>
+              <p className="text-base-content/70">
+                Crie uma conta (banco, carteira ou cartão) no formulário acima
+                para começar a lançar transações.
+              </p>
+            </div>
+          ) : (
+            <ul className="mt-4 space-y-2">
+              {accounts.map((a: Account) => (
+                <li
+                  key={a.id}
+                  className="rounded-box border border-base-300 bg-base-100 p-3"
+                >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <strong>{a.name}</strong>
-                        {a.isDefault ? <span className="badge badge-outline badge-primary">Padrão</span> : null}
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
+                          <strong>{a.name}</strong>
+                          {a.isDefault ? (
+                            <span className="badge badge-outline badge-primary">
+                              Padrão
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
                       {a.type === "credit_card" ? (
                         <>
                           <div className="mt-2 text-xs text-base-content/70">
                             Fatura ({faturaMesLabel})
                           </div>
-                          <div className="mt-1 text-[13px] font-bold text-warning">
+                          <div className="mt-1 text-[15px] font-bold text-warning">
                             A pagar:{" "}
-                            {formatCents(creditCardPayableByAccountId[a.id] ?? 0)}
+                            {formatCents(
+                              creditCardPayableByAccountId[a.id] ?? 0,
+                            )}
                           </div>
                           <div className="mt-1 text-xs font-medium text-base-content/70">
                             Saldo (contábil):{" "}
                             {formatCents(balancesByAccountId[a.id] ?? 0)}
                           </div>
+                          {payInvoice?.cardId === a.id ? (
+                            <form
+                              className="mt-3 grid grid-cols-1 gap-3 rounded-box border border-base-300 bg-base-100 p-3"
+                              onSubmit={onSubmitPayInvoice}
+                            >
+                              <Select
+                                label="Pagar de"
+                                value={payFromId}
+                                onChange={(e) => setPayFromId(e.target.value)}
+                              >
+                                {(accounts.filter(
+                                  (x) =>
+                                    x.id !== a.id && x.type !== "credit_card",
+                                ).length > 0
+                                  ? accounts.filter(
+                                      (x) =>
+                                        x.id !== a.id &&
+                                        x.type !== "credit_card",
+                                    )
+                                  : accounts.filter((x) => x.id !== a.id)
+                                ).map((x) => (
+                                  <option key={x.id} value={x.id}>
+                                    {x.name}
+                                  </option>
+                                ))}
+                              </Select>
+                              <Input
+                                ref={payInvoiceAmountRef}
+                                label="Valor (R$)"
+                                inputMode="decimal"
+                                value={payAmount}
+                                onChange={(e) =>
+                                  setPayAmount(e.target.value.replace(",", "."))
+                                }
+                              />
+                              <Input
+                                label="Data"
+                                type="date"
+                                value={payDate}
+                                onChange={(e) => setPayDate(e.target.value)}
+                              />
+                              <div className="flex justify-end gap-2">
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost"
+                                  onClick={() => setPayInvoice(null)}
+                                >
+                                  <X className="size-4" aria-hidden />
+                                  <span>Voltar</span>
+                                </button>
+                                <button
+                                  type="submit"
+                                  disabled={
+                                    !canSubmitPayInvoice || submittingPayInvoice
+                                  }
+                                  className="btn btn-primary"
+                                >
+                                  {submittingPayInvoice ? (
+                                    <Loader2
+                                      className="size-4 animate-spin"
+                                      aria-hidden
+                                    />
+                                  ) : (
+                                    <Check className="size-4" aria-hidden />
+                                  )}
+                                  <span>
+                                    {submittingPayInvoice
+                                      ? "Registrando…"
+                                      : "Registrar"}
+                                  </span>
+                                </button>
+                              </div>
+                            </form>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-sm mt-2"
+                              onClick={() => openPayInvoice(a.id)}
+                            >
+                              <CreditCard className="size-4" aria-hidden />
+                              <span>Pagar fatura</span>
+                            </button>
+                          )}
                         </>
                       ) : (
                         <div
-                          className={`mt-2 text-[13px] font-bold ${
-                            (balancesByAccountId[a.id] ?? 0) >= 0 ? "text-success" : "text-error"
-                          }`}
+                          className={`mt-2 text-sm font-bold ${(balancesByAccountId[a.id] ?? 0) >= 0 ? "text-success" : "text-error"}`}
                         >
                           Saldo: {formatCents(balancesByAccountId[a.id] ?? 0)}
                         </div>
                       )}
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-2">
-                      <span className="text-xs text-base-content/60" title={ACCOUNT_TYPE_LABEL[a.type]}>
+                      <span
+                        className="text-xs text-base-content/60"
+                        title={ACCOUNT_TYPE_LABEL[a.type]}
+                      >
                         {ACCOUNT_TYPE_LABEL[a.type]}
                       </span>
                       <div className="flex items-center gap-1">
@@ -711,14 +699,28 @@ export function AccountsCard({
                         >
                           <Pencil className="size-4" aria-hidden />
                         </button>
+                        {!a.isDefault ? (
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm btn-square"
+                            onClick={() => void handleSetDefaultAccount(a.id)}
+                            aria-label="Definir como conta padrão"
+                            title="Conta padrão"
+                          >
+                            <Star className="size-4" aria-hidden />
+                          </button>
+                        ) : null}
                         <button
                           type="button"
-                          className="btn btn-ghost btn-sm btn-square"
-                          onClick={() => void handleUnarchiveAccount(a.id)}
-                          aria-label={`Restaurar conta ${a.name}`}
-                          title="Restaurar"
+                          className="btn btn-outline btn-error btn-sm btn-square"
+                          disabled={accounts.length <= 1}
+                          onClick={() =>
+                            void requestArchiveAccount(a.id, a.name)
+                          }
+                          aria-label={`Arquivar conta ${a.name}`}
+                          title="Arquivar"
                         >
-                          <Undo2 className="size-4" aria-hidden />
+                          <Archive className="size-4" aria-hidden />
                         </button>
                       </div>
                     </div>
@@ -726,24 +728,140 @@ export function AccountsCard({
                 </li>
               ))}
             </ul>
-          </details>
-        ) : null}
-      </div>
+          )}
+
+          {archivedAccounts.length > 0 ? (
+            <details className="mt-4">
+              <summary>
+                Contas arquivadas{" "}
+                <span className="text-base-content/70">
+                  ({archivedAccounts.length})
+                </span>
+              </summary>
+              <ul className="mt-2 space-y-2">
+                {archivedAccounts.map((a: Account) => (
+                  <li
+                    key={a.id}
+                    className="rounded-box border border-base-300 bg-base-100 p-3 opacity-95"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <strong>{a.name}</strong>
+                          {a.isDefault ? (
+                            <span className="badge badge-outline badge-primary">
+                              Padrão
+                            </span>
+                          ) : null}
+                        </div>
+                        {a.type === "credit_card" ? (
+                          <>
+                            <div className="mt-2 text-xs text-base-content/70">
+                              Fatura ({faturaMesLabel})
+                            </div>
+                            <div className="mt-1 text-[13px] font-bold text-warning">
+                              A pagar:{" "}
+                              {formatCents(
+                                creditCardPayableByAccountId[a.id] ?? 0,
+                              )}
+                            </div>
+                            <div className="mt-1 text-xs font-medium text-base-content/70">
+                              Saldo (contábil):{" "}
+                              {formatCents(balancesByAccountId[a.id] ?? 0)}
+                            </div>
+                          </>
+                        ) : (
+                          <div
+                            className={`mt-2 text-[13px] font-bold ${
+                              (balancesByAccountId[a.id] ?? 0) >= 0
+                                ? "text-success"
+                                : "text-error"
+                            }`}
+                          >
+                            Saldo: {formatCents(balancesByAccountId[a.id] ?? 0)}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-2">
+                        <span
+                          className="text-xs text-base-content/60"
+                          title={ACCOUNT_TYPE_LABEL[a.type]}
+                        >
+                          {ACCOUNT_TYPE_LABEL[a.type]}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm btn-square"
+                            onClick={() => {
+                              void beginEditAccount(a);
+                            }}
+                            aria-label={`Editar conta ${a.name}`}
+                            title="Editar"
+                          >
+                            <Pencil className="size-4" aria-hidden />
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm btn-square"
+                            onClick={() => void handleUnarchiveAccount(a.id)}
+                            aria-label={`Restaurar conta ${a.name}`}
+                            title="Restaurar"
+                          >
+                            <Undo2 className="size-4" aria-hidden />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ) : null}
+        </div>
       </div>
 
       {archiveConfirm ? (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 p-4" role="presentation" onClick={(e) => { if (e.target === e.currentTarget) dismissArchiveConfirm(); }}>
-          <div className="w-full max-w-[420px] rounded-box border border-base-300 bg-base-100 p-5 shadow" role="dialog" aria-modal="true" aria-labelledby={confirmTitleId} aria-describedby={confirmDescId} onKeyDown={onConfirmDialogKeyDown}>
-            <h2 id={confirmTitleId} className="mb-2.5 mt-0 text-lg font-bold">Arquivar conta?</h2>
-            <p id={confirmDescId} className="mb-4 mt-0 text-sm text-base-content/70">
-              Arquivar a conta &quot;{archiveConfirm.displayName}&quot;? Você pode restaurá-la depois em contas arquivadas.
+        <div
+          className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 p-4"
+          role="presentation"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) dismissArchiveConfirm();
+          }}
+        >
+          <div
+            className="w-full max-w-[420px] rounded-box border border-base-300 bg-base-100 p-5 shadow"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={confirmTitleId}
+            aria-describedby={confirmDescId}
+            onKeyDown={onConfirmDialogKeyDown}
+          >
+            <h2 id={confirmTitleId} className="mb-2.5 mt-0 text-lg font-bold">
+              Arquivar conta?
+            </h2>
+            <p
+              id={confirmDescId}
+              className="mb-4 mt-0 text-sm text-base-content/70"
+            >
+              Arquivar a conta &quot;{archiveConfirm.displayName}&quot;? Você
+              pode restaurá-la depois em contas arquivadas.
             </p>
             <div className="flex flex-wrap justify-end gap-2">
-              <button ref={confirmCancelRef} type="button" className="btn btn-ghost" onClick={dismissArchiveConfirm}>
+              <button
+                ref={confirmCancelRef}
+                type="button"
+                className="btn btn-ghost"
+                onClick={dismissArchiveConfirm}
+              >
                 <X className="size-4" aria-hidden />
                 <span>Voltar</span>
               </button>
-              <button type="button" className="btn btn-primary" onClick={() => void handleArchiveConfirmPrimary()}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => void handleArchiveConfirmPrimary()}
+              >
                 <Archive className="size-4" aria-hidden />
                 <span>Arquivar</span>
               </button>

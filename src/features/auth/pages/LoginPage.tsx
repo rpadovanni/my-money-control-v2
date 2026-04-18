@@ -50,7 +50,9 @@ export function LoginPage() {
       <header className="mb-4 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">My Money Control</h1>
-          <p className="text-base-content/70">Entre para acessar seus dados na nuvem.</p>
+          <p className="text-base-content/70">
+            Entre para acessar seus dados na nuvem.
+          </p>
         </div>
         <div className="badge badge-outline">
           {authStatus === "loading" || authStatus === "idle"
@@ -61,50 +63,53 @@ export function LoginPage() {
         </div>
       </header>
 
-      <section className="card border border-base-300 bg-base-100" aria-label="Login">
+      <section
+        className="card border border-base-300 bg-base-100"
+        aria-label="Login"
+      >
         <div className="card-body">
           <h2 className="card-title">Login</h2>
-        {authError ? (
-          <div className="alert alert-error" role="alert">
-            {authError}
-          </div>
-        ) : null}
-        <form onSubmit={(e) => void onAuthSignIn(e)}>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Input
-              label="E-mail"
-              type="email"
-              name="email"
-              autoComplete="email"
-              value={authEmail}
-              onChange={(e) => setAuthEmail(e.target.value)}
-              disabled={authBusy}
-            />
-            <Input
-              label="Senha"
-              type="password"
-              name="password"
-              autoComplete="current-password"
-              value={authPassword}
-              onChange={(e) => setAuthPassword(e.target.value)}
-              disabled={authBusy}
-            />
-          </div>
-          <div className="mt-4 flex justify-end">
-            <button
-              type="submit"
-              disabled={authBusy}
-              className="btn btn-primary"
-            >
-              {authBusy ? (
-                <Loader2 className="size-4 animate-spin" aria-hidden />
-              ) : (
-                <LogIn className="size-4" aria-hidden />
-              )}
-              <span>{authBusy ? "Entrando…" : "Entrar"}</span>
-            </button>
-          </div>
-        </form>
+          {authError ? (
+            <div className="alert alert-error" role="alert">
+              {authError}
+            </div>
+          ) : null}
+          <form onSubmit={(e) => void onAuthSignIn(e)}>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Input
+                label="E-mail"
+                type="email"
+                name="email"
+                autoComplete="email"
+                value={authEmail}
+                onChange={(e) => setAuthEmail(e.target.value)}
+                disabled={authBusy}
+              />
+              <Input
+                label="Senha"
+                type="password"
+                name="password"
+                autoComplete="current-password"
+                value={authPassword}
+                onChange={(e) => setAuthPassword(e.target.value)}
+                disabled={authBusy}
+              />
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button
+                type="submit"
+                disabled={authBusy}
+                className="btn btn-primary"
+              >
+                {authBusy ? (
+                  <Loader2 className="size-4 animate-spin" aria-hidden />
+                ) : (
+                  <LogIn className="size-4" aria-hidden />
+                )}
+                <span>{authBusy ? "Entrando…" : "Entrar"}</span>
+              </button>
+            </div>
+          </form>
         </div>
       </section>
     </div>

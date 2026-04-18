@@ -80,7 +80,10 @@ export function DashboardChrome({
                 : "Carregando…"}
           </div>
           {isSupabaseConfigured() && authSession?.user ? (
-            <div className="flex min-w-0 flex-wrap items-center gap-2" aria-label="Sessão na nuvem">
+            <div
+              className="flex min-w-0 flex-wrap items-center gap-2"
+              aria-label="Sessão na nuvem"
+            >
               <span
                 className="max-w-[160px] truncate text-xs leading-tight sm:max-w-[55vw] min-[900px]:max-w-[280px]"
                 title={authSession.user.email ?? undefined}
@@ -133,7 +136,10 @@ export function DashboardChrome({
         </div>
       </header>
 
-      <nav className="mb-4 flex flex-wrap gap-2.5" aria-label="Navegação principal">
+      <nav
+        className="mb-4 flex flex-wrap gap-2.5"
+        aria-label="Navegação principal"
+      >
         <NavLink
           to="/"
           end

@@ -128,15 +128,21 @@ export function TransactionFiltersAndSummary({
           <div className="grid grid-cols-2 gap-3 min-[720px]:grid-cols-4">
             <div>
               <div className="text-base-content/70">Receitas</div>
-              <div className="mt-1 font-bold">{formatCents(summary.income)}</div>
+              <div className="mt-1 font-bold">
+                {formatCents(summary.income)}
+              </div>
             </div>
             <div>
               <div className="text-base-content/70">Despesas</div>
-              <div className="mt-1 font-bold">{formatCents(summary.expense)}</div>
+              <div className="mt-1 font-bold">
+                {formatCents(summary.expense)}
+              </div>
             </div>
             <div>
               <div className="text-base-content/70">Resultado</div>
-              <div className={`mt-1 font-bold ${summary.flow >= 0 ? "text-success" : "text-error"}`}>
+              <div
+                className={`mt-1 font-bold ${summary.flow >= 0 ? "text-success" : "text-error"}`}
+              >
                 {formatCents(summary.flow)}
               </div>
               <div className="text-xs text-base-content/60">
@@ -145,10 +151,14 @@ export function TransactionFiltersAndSummary({
             </div>
             <div>
               <div className="text-base-content/70">Saldo no período</div>
-              <div className={`mt-1 font-bold ${summary.period >= 0 ? "text-success" : "text-error"}`}>
+              <div
+                className={`mt-1 font-bold ${summary.period >= 0 ? "text-success" : "text-error"}`}
+              >
                 {formatCents(summary.period)}
               </div>
-              <div className="text-xs text-base-content/60">Inclui saldo inicial e movimentos</div>
+              <div className="text-xs text-base-content/60">
+                Inclui saldo inicial e movimentos
+              </div>
             </div>
           </div>
         </div>
