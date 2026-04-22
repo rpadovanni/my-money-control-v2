@@ -1,13 +1,14 @@
 /**
- * Barra superior do dashboard autenticado: marca, links principais (scroll
- * horizontal em ecrãs estreitos), estado de ligação e menu da conta (nuvem).
+ * Barra superior do dashboard autenticado: marca, links principais, estado
+ * de ligação e menu da conta (nuvem). Em ecrãs estreitos os links migram
+ * para um painel deslizante controlado por um botão hamburger.
  *
  * Lê estados puros das stores (auth/contas/categorias/transações) directamente.
  * Os valores que vêm de hooks com efeitos colaterais (`useDashboardShell` para
  * `online`, `useDashboardFeedback` para a migração) chegam por prop a partir do
  * `LoggedInLayout`, para que esses hooks rodem **uma só vez** no shell.
  */
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ChevronDown,
   CloudUpload,
@@ -16,14 +17,16 @@ import {
   List,
   Loader2,
   LogOut,
+  Menu,
   Tag,
   User,
   Wallet,
   Wifi,
   WifiOff,
+  X,
   type LucideIcon,
 } from "lucide-react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { useAuthStore } from "../../features/auth/store/auth.store";
 import { useAccountsStore } from "../../features/accounts/store/accounts.store";
 import { useCategoriesStore } from "../../features/categories/store/categories.store";
@@ -54,11 +57,12 @@ const PRIMARY_NAV: PrimaryNavItem[] = [
   { to: "/categories", Icon: Tag, label: "Categorias" },
 ];
 
-function navBtnClass(isActive: boolean) {
+function navBtnClass(isActive: boolean, layout: "inline" | "stacked" = "inline") {
   return cn(
-    "btn btn-sm shrink-0 gap-2 rounded-full border-0 no-underline whitespace-nowrap",
+    "btn btn-sm gap-2 rounded-full border-0 no-underline whitespace-nowrap",
+    layout === "inline" ? "shrink-0" : "w-full justify-start",
     isActive
-      ? "btn-neutral text-neutral-content"
+      ? "btn-primary text-primary-content"
       : "btn-ghost text-base-content/80 hover:bg-base-200 hover:text-base-content",
   );
 }
@@ -74,6 +78,21 @@ function connectionStatusLabel(
   return "Carregando…";
 }
 
+/**
+ * Texto da legenda mostrada como tooltip do badge de status. Resume onde os
+ * dados estão a ser persistidos (nuvem vs IndexedDB local) e qualquer pré-
+ * requisito relevante.
+ */
+function storageModeHint(usingCloud: boolean): string {
+  if (usingCloud) {
+    return "Dados na nuvem (Supabase). Requer conexão para alterações.";
+  }
+  if (isSupabaseConfigured()) {
+    return "Dados neste aparelho (IndexedDB). Entre na nuvem para sincronizar entre dispositivos.";
+  }
+  return "Dados neste aparelho (IndexedDB). Opcional: variáveis VITE_SUPABASE_* para sync.";
+}
+
 function userInitials(email: string | null | undefined): string {
   if (!email) return "?";
   const local = email.split("@")[0] ?? "";
@@ -83,26 +102,46 @@ function userInitials(email: string | null | undefined): string {
   return (first + second).toUpperCase();
 }
 
-function MainNav() {
+function InlineNav() {
   return (
-    <div className="min-w-0 overflow-x-auto overflow-y-hidden scrollbar-none">
-      <nav
-        className="mx-auto flex w-max max-w-none flex-nowrap items-center gap-1.5 sm:gap-2"
-        aria-label="Navegação principal"
-      >
-        {PRIMARY_NAV.map(({ to, end, Icon, label }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={end}
-            className={({ isActive }) => navBtnClass(isActive)}
-          >
-            <Icon className="size-4 shrink-0" aria-hidden />
-            <span>{label}</span>
-          </NavLink>
-        ))}
-      </nav>
-    </div>
+    <nav
+      className="flex flex-nowrap items-center justify-center gap-1.5 sm:gap-2"
+      aria-label="Navegação principal"
+    >
+      {PRIMARY_NAV.map(({ to, end, Icon, label }) => (
+        <NavLink
+          key={to}
+          to={to}
+          end={end}
+          className={({ isActive }) => navBtnClass(isActive, "inline")}
+        >
+          <Icon className="size-4 shrink-0" aria-hidden />
+          <span>{label}</span>
+        </NavLink>
+      ))}
+    </nav>
+  );
+}
+
+function StackedNav({ onNavigate }: { onNavigate: () => void }) {
+  return (
+    <nav
+      className="flex flex-col gap-1"
+      aria-label="Navegação principal (móvel)"
+    >
+      {PRIMARY_NAV.map(({ to, end, Icon, label }) => (
+        <NavLink
+          key={to}
+          to={to}
+          end={end}
+          onClick={onNavigate}
+          className={({ isActive }) => navBtnClass(isActive, "stacked")}
+        >
+          <Icon className="size-4 shrink-0" aria-hidden />
+          <span>{label}</span>
+        </NavLink>
+      ))}
+    </nav>
   );
 }
 
@@ -126,6 +165,19 @@ export function DashboardNavbar({
   const userEmail = authSession?.user?.email ?? null;
   const migrated = userId ? wasLocalDataMigratedForUser(userId) : false;
   const statusLabel = connectionStatusLabel(online, authReady, ready);
+  const usingCloud =
+    isSupabaseConfigured() &&
+    authStatus === "signedIn" &&
+    Boolean(authSession?.user);
+  const storageHint = storageModeHint(usingCloud);
+
+  // Painel mobile: abre/fecha com o hamburger; fecha automaticamente quando
+  // a rota muda (clique num link, navegação programática, back/forward).
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const { pathname } = useLocation();
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [pathname]);
 
   function closeAccountMenu() {
     accountMenuRef.current?.removeAttribute("open");
@@ -133,11 +185,11 @@ export function DashboardNavbar({
 
   return (
     <header className="w-full border-b border-base-300 bg-base-100">
-      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-3 px-4 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:gap-4 sm:py-2.5 lg:min-h-16">
+      <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3 sm:gap-4 sm:py-2.5 lg:min-h-16">
         {/* Marca + título */}
-        <div className="flex min-w-0 items-center gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3 sm:flex-initial">
           <div
-            className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-neutral text-neutral-content"
+            className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-content"
             aria-hidden
           >
             <Wallet className="size-5" strokeWidth={2} />
@@ -147,27 +199,36 @@ export function DashboardNavbar({
           </span>
         </div>
 
-        {/* Links (scroll horizontal em mobile) */}
-        <div className="min-w-0 py-0.5 sm:px-2">
-          <MainNav />
+        {/* Links inline (sm+) */}
+        <div className="hidden min-w-0 flex-1 sm:block sm:px-2">
+          <InlineNav />
         </div>
 
-        {/* Estado de rede + conta (dropdown só com sessão Supabase) */}
-        <div className="flex shrink-0 items-center justify-end gap-2 sm:justify-self-end">
-          <Badge
-            variant="soft"
-            color="neutral"
-            size="sm"
-            className="inline-flex shrink-0 items-center gap-1.5 px-2 font-normal"
-            icon={
-              online ? (
-                <Wifi className="size-3.5" aria-hidden />
-              ) : (
-                <WifiOff className="size-3.5" aria-hidden />
-              )
-            }
-            label={statusLabel}
-          />
+        {/* Estado de rede + conta (dropdown só com sessão Supabase) + hamburger (móvel) */}
+        <div className="flex shrink-0 items-center gap-2 sm:justify-self-end">
+          {/* Tooltip do DaisyUI: a dica do modo de armazenamento aparece ao
+              passar o rato. `tooltip-bottom-end` evita overflow no canto direito
+              (em ecrãs estreitos é preferível ao centrado). */}
+          <div
+            className="tooltip tooltip-bottom max-[640px]:tooltip-left"
+            data-tip={storageHint}
+          >
+            <Badge
+              variant="soft"
+              color="neutral"
+              size="md"
+              className="inline-flex shrink-0 items-center gap-1.5 px-2 font-normal"
+              icon={
+                online ? (
+                  <Wifi className="size-3.5" aria-hidden />
+                ) : (
+                  <WifiOff className="size-3.5" aria-hidden />
+                )
+              }
+              label={statusLabel}
+              aria-label={`${statusLabel}. ${storageHint}`}
+            />
+          </div>
 
           {showCloudActions ? (
             <details ref={accountMenuRef} className="dropdown dropdown-end">
@@ -244,6 +305,54 @@ export function DashboardNavbar({
               </div>
             </div>
           )}
+
+          {/* Hamburger: abre/fecha o painel de navegação móvel. */}
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm btn-square sm:hidden"
+            aria-label={mobileNavOpen ? "Fechar menu" : "Abrir menu"}
+            aria-expanded={mobileNavOpen}
+            aria-controls="dashboard-mobile-nav"
+            onClick={() => setMobileNavOpen((o) => !o)}
+          >
+            <span className="relative inline-flex size-5 items-center justify-center">
+              <Menu
+                className={cn(
+                  "absolute size-5 motion-safe:transition-[opacity,transform] motion-safe:duration-200",
+                  mobileNavOpen
+                    ? "opacity-0 motion-safe:rotate-90"
+                    : "opacity-100 motion-safe:rotate-0",
+                )}
+                aria-hidden
+              />
+              <X
+                className={cn(
+                  "absolute size-5 motion-safe:transition-[opacity,transform] motion-safe:duration-200",
+                  mobileNavOpen
+                    ? "opacity-100 motion-safe:rotate-0"
+                    : "opacity-0 motion-safe:-rotate-90",
+                )}
+                aria-hidden
+              />
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {/* Painel mobile: slide + fade simples via max-height + opacity. */}
+      <div
+        id="dashboard-mobile-nav"
+        className={cn(
+          "overflow-hidden border-base-300 sm:hidden",
+          "motion-safe:transition-[max-height,opacity,border-top-width] motion-safe:duration-300 motion-safe:ease-out",
+          mobileNavOpen
+            ? "max-h-96 border-t opacity-100"
+            : "max-h-0 border-t-0 opacity-0",
+        )}
+        aria-hidden={!mobileNavOpen}
+      >
+        <div className="mx-auto max-w-6xl px-4 py-3">
+          <StackedNav onNavigate={() => setMobileNavOpen(false)} />
         </div>
       </div>
     </header>
