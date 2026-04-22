@@ -10,21 +10,38 @@
  * - `/accounts` — contas (CRUD, transferências, “Pagar fatura”).
  * - `/categories` — categorias (CRUD).
  */
-import { useMemo } from "react";
-import { ArrowUp, Download, Inbox, Loader2, X } from "lucide-react";
+import { useMemo, useState } from "react";
+import {
+  ArrowUp,
+  CreditCard,
+  Download,
+  Inbox,
+  Loader2,
+  Plus,
+  X,
+} from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { AccountsCard } from "../../features/accounts/components/AccountsCard";
+import { AccountFormDialog } from "../../features/accounts/components/AccountFormDialog";
 import { useAuthStore } from "../../features/auth/store/auth.store";
+import type {
+  Account,
+  AccountType,
+} from "../../features/accounts/types/accounts";
 import { CategoriesSection } from "../../features/categories/components/CategoriesSection";
+import {
+  CategoryFormDialog,
+  type EditingCategory,
+} from "../../features/categories/components/CategoryFormDialog";
 import { useCategoriesStore } from "../../features/categories/store/categories.store";
 import { TransactionFiltersAndSummary } from "../../features/transactions/components/TransactionFiltersAndSummary";
-import { TransactionFormCard } from "../../features/transactions/components/TransactionFormCard";
+import { TransactionFormDialog } from "../../features/transactions/components/TransactionFormDialog";
 import { TransactionList } from "../../features/transactions/components/TransactionList";
 import { TransactionsListSection } from "../../features/transactions/components/TransactionsListSection";
 import { useTransactionListItems } from "../../features/transactions/hooks/useTransactionListItems";
 import { useTransactionsStore } from "../../features/transactions/store/transactions.store";
 import { isSupabaseConfigured } from "../../shared/lib/supabase/client";
-import { DashboardHomeMetricsPlaceholder } from "../components/DashboardHomeMetricsPlaceholder";
+import { DashboardHomeMetrics } from "../components/DashboardHomeMetrics";
 import { LoggedInLayout } from "../components/LoggedInLayout";
 import { useDashboardBootstrap } from "../hooks/useDashboardBootstrap";
 import { useDashboardFeedback } from "../hooks/useDashboardFeedback";
@@ -48,9 +65,18 @@ const LAYOUT_PAGE: Record<DashboardView, { title: string; subtitle?: string }> =
       title: "Dashboard",
       subtitle: "Visão geral das suas finanças",
     },
-    transactions: { title: "Transações" },
-    accounts: { title: "Contas" },
-    categories: { title: "Categorias" },
+    transactions: {
+      title: "Transações",
+      subtitle: "Gerencie todas as suas movimentações financeiras",
+    },
+    accounts: {
+      title: "Contas e Cartões",
+      subtitle: "Gerencie suas contas bancárias e cartões de créditoh",
+    },
+    categories: {
+      title: "Categorias",
+      subtitle: "Gerencie as categorias de receitas e despesas",
+    },
   };
 
 function HomeEmptyState() {
@@ -67,11 +93,7 @@ function HomeEmptyState() {
   );
 }
 
-function TransactionsEmptyState({
-  formPlacement,
-}: {
-  formPlacement: "aside" | "above";
-}) {
+function TransactionsEmptyState() {
   return (
     <>
       <Inbox className="mx-auto size-12 opacity-40" aria-hidden />
@@ -79,11 +101,8 @@ function TransactionsEmptyState({
         Nenhuma transação neste período
       </p>
       <p className="text-sm text-base-content/70">
-        Ajuste mês, conta ou tipo nos filtros — ou inclua um lançamento{" "}
-        {formPlacement === "aside"
-          ? "no formulário ao lado"
-          : "no formulário acima"}
-        .
+        Ajuste mês, conta ou tipo nos filtros — ou clique em «Nova transação» no
+        topo da página.
       </p>
     </>
   );
@@ -147,6 +166,32 @@ export function DashboardPage() {
     filterCategories,
   } = useTransactionWorkspaceState();
 
+  // --- Modal de transação (criar) e contas (criar/editar) ---
+  // O modal de transação abre quando o utilizador clica em «Nova transação»
+  // no topo da página ou em «Editar» numa linha (que define `editingId`).
+  const [creatingTransaction, setCreatingTransaction] = useState(false);
+  const transactionDialogOpen = creatingTransaction || editingId !== null;
+  function closeTransactionDialog() {
+    setCreatingTransaction(false);
+    setEditingId(null);
+  }
+
+  const [accountDialog, setAccountDialog] = useState<
+    | null
+    | { mode: "create"; defaultType: AccountType }
+    | { mode: "edit"; account: Account }
+  >(null);
+  function closeAccountDialog() {
+    setAccountDialog(null);
+  }
+
+  const [categoryDialog, setCategoryDialog] = useState<
+    null | { mode: "create" } | { mode: "edit"; category: EditingCategory }
+  >(null);
+  function closeCategoryDialog() {
+    setCategoryDialog(null);
+  }
+
   // Preview da Home: transações do mês corrente (filtro inicial do store)
   // limitadas a `HOME_TX_PREVIEW_LIMIT`. O hook está sempre presente
   // (regras dos hooks); o resultado só é renderizado em `/`.
@@ -161,6 +206,61 @@ export function DashboardPage() {
     [allListItems],
   );
 
+  // Acções específicas da página (canto superior direito).
+  let headerActions: React.ReactNode = null;
+  if (view === "transactions") {
+    headerActions = (
+      <button
+        type="button"
+        className="btn btn-primary"
+        onClick={() => {
+          setEditingId(null);
+          setCreatingTransaction(true);
+        }}
+      >
+        <Plus className="size-4" aria-hidden />
+        <span>Nova transação</span>
+      </button>
+    );
+  } else if (view === "accounts") {
+    headerActions = (
+      <>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={() =>
+            setAccountDialog({ mode: "create", defaultType: "bank" })
+          }
+        >
+          <Plus className="size-4" aria-hidden />
+          <span>Adicionar conta</span>
+        </button>
+        <button
+          type="button"
+          className="btn btn-outline"
+          onClick={() =>
+            setAccountDialog({ mode: "create", defaultType: "credit_card" })
+          }
+        >
+          <CreditCard className="size-4" aria-hidden />
+          <span>Adicionar cartão</span>
+        </button>
+      </>
+    );
+  } else if (view === "categories") {
+    headerActions = (
+      <button
+        type="button"
+        className="btn btn-primary"
+        disabled={Boolean(categoriesInitError)}
+        onClick={() => setCategoryDialog({ mode: "create" })}
+      >
+        <Plus className="size-4" aria-hidden />
+        <span>Nova categoria</span>
+      </button>
+    );
+  }
+
   return (
     <LoggedInLayout
       online={online}
@@ -168,6 +268,7 @@ export function DashboardPage() {
       onMigrateLocalToCloud={() => void onMigrateLocalToCloud()}
       pageTitle={page.title}
       pageSubtitle={page.subtitle}
+      headerActions={headerActions}
     >
       {/* Erro global (ex.: falha ao gravar) */}
       {notice ? (
@@ -205,7 +306,7 @@ export function DashboardPage() {
       {/* Início: KPIs + transações recentes (só leitura) */}
       {view === "home" ? (
         <>
-          <DashboardHomeMetricsPlaceholder />
+          <DashboardHomeMetrics />
           <div className="mt-4">
             <TransactionList
               items={homePreview}
@@ -216,53 +317,88 @@ export function DashboardPage() {
         </>
       ) : null}
 
-      {/* Transações: filtros + resumo + formulário + lista com ações */}
+      {/* Transações: filtros + resumo + lista (formulário em modal) */}
       {view === "transactions" ? (
         <div className="flex flex-col gap-4">
           <TransactionFiltersAndSummary
             accounts={filterAccounts}
             categories={filterCategories}
           />
-          <section className="grid grid-cols-1 gap-4 min-[900px]:grid-cols-2">
-            <TransactionFormCard
-              accounts={txAccountsPicker}
-              archivedAccounts={txArchivedPicker}
-              categories={txCategoriesPicker}
-              categoriesReady={catReady}
-              pushToast={pushToast}
-              setNotice={setNotice}
-              editingId={editingId}
-              setEditingId={setEditingId}
-              submittingTx={submittingTx}
-              setSubmittingTx={setSubmittingTx}
-            />
-            <TransactionsListSection
-              accounts={txAccountsPicker}
-              archivedAccounts={txArchivedPicker}
-              categories={txCategoriesPicker}
-              pushToast={pushToast}
-              setNotice={setNotice}
-              editingId={editingId}
-              setEditingId={setEditingId}
-              setSubmittingTx={setSubmittingTx}
-              emptySlot={<TransactionsEmptyState formPlacement="aside" />}
-            />
-          </section>
+          <TransactionsListSection
+            accounts={txAccountsPicker}
+            archivedAccounts={txArchivedPicker}
+            categories={txCategoriesPicker}
+            pushToast={pushToast}
+            setNotice={setNotice}
+            editingId={editingId}
+            setEditingId={setEditingId}
+            setSubmittingTx={setSubmittingTx}
+            emptySlot={<TransactionsEmptyState />}
+          />
         </div>
       ) : null}
 
-      {/* Contas: CRUD + transferências + “Pagar fatura” */}
+      {/* Contas: CRUD + transferências + “Pagar fatura” (formulário em modal) */}
       {view === "accounts" ? (
         <AccountsCard
           onAddTransfer={(input) => addTransaction(input)}
           pushToast={pushToast}
           setNotice={setNotice}
+          onEditAccount={(account) =>
+            setAccountDialog({ mode: "edit", account })
+          }
         />
       ) : null}
 
-      {/* Categorias */}
+      {/* Modal partilhado: nova/editar transação */}
+      <TransactionFormDialog
+        open={transactionDialogOpen}
+        onClose={closeTransactionDialog}
+        accounts={txAccountsPicker}
+        archivedAccounts={txArchivedPicker}
+        categories={txCategoriesPicker}
+        categoriesReady={catReady}
+        pushToast={pushToast}
+        setNotice={setNotice}
+        editingId={editingId}
+        submittingTx={submittingTx}
+        setSubmittingTx={setSubmittingTx}
+      />
+
+      {/* Modal partilhado: nova/editar categoria */}
+      <CategoryFormDialog
+        open={categoryDialog !== null}
+        mode={categoryDialog?.mode ?? "create"}
+        editingCategory={
+          categoryDialog?.mode === "edit" ? categoryDialog.category : null
+        }
+        onClose={closeCategoryDialog}
+        pushToast={pushToast}
+      />
+
+      {/* Modal partilhado: nova/editar conta (ou cartão) */}
+      <AccountFormDialog
+        open={accountDialog !== null}
+        mode={accountDialog?.mode ?? "create"}
+        defaultType={
+          accountDialog?.mode === "create" ? accountDialog.defaultType : "bank"
+        }
+        editingAccount={
+          accountDialog?.mode === "edit" ? accountDialog.account : null
+        }
+        onClose={closeAccountDialog}
+        pushToast={pushToast}
+        setNotice={setNotice}
+      />
+
+      {/* Categorias (formulário em modal) */}
       {view === "categories" ? (
-        <CategoriesSection pushToast={pushToast} />
+        <CategoriesSection
+          pushToast={pushToast}
+          onEditCategory={(category) =>
+            setCategoryDialog({ mode: "edit", category })
+          }
+        />
       ) : null}
 
       {/* Feedback efémero (toast) */}

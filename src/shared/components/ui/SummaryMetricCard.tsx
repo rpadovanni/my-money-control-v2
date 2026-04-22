@@ -27,12 +27,15 @@ export function SummaryMetricCard({
 }: SummaryMetricCardProps) {
   return (
     <article
-      className={cn("card border border-base-300 bg-base-100", className)}
+      className={cn(
+        "card bg-base-100 card-border border-base-300 w-full",
+        className,
+      )}
       {...props}
     >
       <div className="card-body flex flex-col gap-3">
         <div className="flex items-center justify-between gap-2">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary [&_svg]:size-4">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-content [&_svg]:size-4">
             {icon}
           </div>
           {headerAction ? (

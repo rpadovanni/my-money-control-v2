@@ -1,3 +1,11 @@
+/**
+ * Lista de contas (incluindo cartões) com acções rápidas: editar, definir
+ * como padrão, arquivar, restaurar e «Pagar fatura» (transferência → cartão).
+ *
+ * A criação e edição de contas migraram para o `AccountFormDialog`, accionado
+ * pelos botões «Adicionar conta» / «Adicionar cartão» no cabeçalho da página
+ * (e pelo lápis «Editar» nesta lista, que delega no callback `onEditAccount`).
+ */
 import { useEffect, useRef, useState } from "react";
 import {
   Archive,
@@ -5,7 +13,6 @@ import {
   CreditCard,
   Loader2,
   Pencil,
-  Plus,
   Star,
   Undo2,
   WalletCards,
@@ -45,6 +52,7 @@ export function AccountsCard({
   onAddTransfer,
   pushToast,
   setNotice,
+  onEditAccount,
 }: {
   onAddTransfer: (input: AddTransferPayload) => Promise<void>;
   pushToast: (
@@ -53,6 +61,8 @@ export function AccountsCard({
     durationMs?: number,
   ) => void;
   setNotice: (n: null | { variant: "error"; message: string }) => void;
+  /** Abre o modal de edição (a página gere o estado do dialog). */
+  onEditAccount: (account: Account) => void;
 }) {
   const accounts = useAccountsStore((s) => s.accounts.items);
   const archivedAccounts = useAccountsStore((s) => s.accounts.archivedItems);
@@ -62,41 +72,18 @@ export function AccountsCard({
   const creditCardPayableByAccountId = useAccountsStore(
     (s) => s.accounts.creditCardPayableByAccountId,
   );
-  const addAccount = useAccountsStore((s) => s.addAccount);
   const setDefaultAccount = useAccountsStore((s) => s.setDefaultAccount);
   const archiveAccount = useAccountsStore((s) => s.archiveAccount);
   const unarchiveAccount = useAccountsStore((s) => s.unarchiveAccount);
-  const getAccountOpeningForEdit = useAccountsStore(
-    (s) => s.getAccountOpeningForEdit,
-  );
-  const updateAccountDetails = useAccountsStore((s) => s.updateAccountDetails);
 
-  const accountFormNameRef = useRef<HTMLInputElement>(null);
   const payInvoiceAmountRef = useRef<HTMLInputElement>(null);
 
-  const [submittingAccount, setSubmittingAccount] = useState(false);
-  const [submittingAccountEdit, setSubmittingAccountEdit] = useState(false);
   const [submittingPayInvoice, setSubmittingPayInvoice] = useState(false);
 
   const [payInvoice, setPayInvoice] = useState<null | { cardId: string }>(null);
   const [payFromId, setPayFromId] = useState("");
   const [payAmount, setPayAmount] = useState("");
   const [payDate, setPayDate] = useState(() => todayISODate());
-
-  const [accountForm, setAccountForm] = useState(() => ({
-    name: "",
-    type: "bank" as AccountType,
-    openingBalance: "",
-    makeDefault: false,
-  }));
-
-  const [accountEdit, setAccountEdit] = useState<null | {
-    id: string;
-    name: string;
-    type: AccountType;
-    openingBalance: string;
-    openingDate: string;
-  }>(null);
 
   const [archiveConfirm, setArchiveConfirm] = useState<null | {
     accountId: string;
@@ -110,19 +97,6 @@ export function AccountsCard({
 
   const defaultAccountId =
     accounts.find((a) => a.isDefault)?.id ?? accounts[0]?.id ?? "";
-
-  const canSubmitAccount =
-    accountForm.name.trim().length > 0 && accountEdit == null;
-
-  const accountEditOpeningRaw =
-    accountEdit?.openingBalance.trim().replace(",", ".") ?? "";
-  const accountEditOpeningValid =
-    accountEditOpeningRaw.length === 0 ||
-    Number.isFinite(Number(accountEditOpeningRaw));
-  const canSubmitAccountEdit =
-    accountEdit != null &&
-    accountEdit.name.trim().length > 0 &&
-    accountEditOpeningValid;
 
   const payRaw = payAmount.trim().replace(",", ".");
   const payNum = payRaw.length > 0 ? Number(payRaw) : Number.NaN;
@@ -154,92 +128,6 @@ export function AccountsCard({
       accounts.find((a) => a.id !== cardId && a.type !== "credit_card")?.id ??
       defaultAccountId;
     setPayFromId(from);
-  }
-
-  async function onSubmitAccount(e: React.FormEvent) {
-    e.preventDefault();
-    if (!canSubmitAccount || accountEdit || submittingAccount) return;
-
-    setSubmittingAccount(true);
-    setNotice(null);
-    try {
-      const obRaw = accountForm.openingBalance.trim().replace(",", ".");
-      const openingBalanceCents =
-        obRaw.length > 0 && Number.isFinite(Number(obRaw))
-          ? Math.round(Number(obRaw) * 100)
-          : undefined;
-
-      await addAccount({
-        name: accountForm.name.trim(),
-        type: accountForm.type,
-        makeDefault: accountForm.makeDefault,
-        openingBalanceCents,
-      });
-
-      setAccountForm({
-        name: "",
-        type: "bank",
-        openingBalance: "",
-        makeDefault: false,
-      });
-      pushToast("success", "Conta criada.");
-      queueMicrotask(() => accountFormNameRef.current?.focus());
-    } catch (err) {
-      setNotice({ variant: "error", message: errMessage(err) });
-    } finally {
-      setSubmittingAccount(false);
-    }
-  }
-
-  async function beginEditAccount(a: Account) {
-    setNotice(null);
-    try {
-      const snap = await getAccountOpeningForEdit(a.id);
-      setAccountEdit({
-        id: a.id,
-        name: a.name,
-        type: a.type,
-        openingBalance:
-          snap.amountCents != null ? String(snap.amountCents / 100) : "",
-        openingDate: snap.date,
-      });
-    } catch (err) {
-      setNotice({ variant: "error", message: errMessage(err) });
-    }
-  }
-
-  async function onSubmitAccountEdit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!canSubmitAccountEdit || !accountEdit || submittingAccountEdit) return;
-
-    setSubmittingAccountEdit(true);
-    setNotice(null);
-    try {
-      const raw = accountEdit.openingBalance.trim().replace(",", ".");
-      let openingBalanceCents: number | null = null;
-      if (raw.length > 0) {
-        if (!Number.isFinite(Number(raw))) {
-          pushToast("error", "Saldo inicial inválido.");
-          return;
-        }
-        const cents = Math.round(Number(raw) * 100);
-        openingBalanceCents = cents === 0 ? null : cents;
-      }
-
-      await updateAccountDetails(accountEdit.id, {
-        name: accountEdit.name.trim(),
-        type: accountEdit.type,
-        openingBalanceCents,
-        openingDate: accountEdit.openingDate,
-      });
-      setAccountEdit(null);
-      pushToast("success", "Conta atualizada.");
-      queueMicrotask(() => accountFormNameRef.current?.focus());
-    } catch (err) {
-      setNotice({ variant: "error", message: errMessage(err) });
-    } finally {
-      setSubmittingAccountEdit(false);
-    }
   }
 
   async function runArchiveAccountAction(id: string) {
@@ -322,187 +210,18 @@ export function AccountsCard({
     <>
       <div className="card border border-base-300 bg-base-100">
         <div className="card-body">
-          <h2 className="card-title">Contas</h2>
           <p className="text-sm text-base-content/70">
             Saldo por conta = histórico completo. Em cartões, &quot;A
             pagar&quot; usa sempre o <strong>mês civil atual</strong>{" "}
             (independente do filtro da lista).
           </p>
-          <div
-            className={
-              accountEdit ? "pointer-events-none opacity-60" : undefined
-            }
-          >
-            <form
-              className="grid grid-cols-1 gap-3 min-[640px]:grid-cols-2"
-              onSubmit={onSubmitAccount}
-            >
-              <Input
-                rootClassName="col-span-full min-[640px]:col-span-2"
-                ref={accountFormNameRef}
-                label="Nome"
-                placeholder="ex.: Bradesco"
-                autoComplete="off"
-                maxLength={120}
-                value={accountForm.name}
-                onChange={(e) =>
-                  setAccountForm((f) => ({ ...f, name: e.target.value }))
-                }
-              />
-              <Select
-                label="Tipo"
-                value={accountForm.type}
-                onChange={(e) =>
-                  setAccountForm((f) => ({
-                    ...f,
-                    type: e.target.value as AccountType,
-                  }))
-                }
-              >
-                <option value="bank">Banco</option>
-                <option value="wallet">Carteira</option>
-                <option value="credit_card">Cartão de crédito</option>
-                <option value="other">Outro</option>
-              </Select>
-              <Input
-                label="Saldo inicial (opcional)"
-                inputMode="decimal"
-                placeholder="ex.: 1500 ou −200"
-                value={accountForm.openingBalance}
-                onChange={(e) =>
-                  setAccountForm((f) => ({
-                    ...f,
-                    openingBalance: e.target.value.replace(",", "."),
-                  }))
-                }
-              />
-              <label className="label cursor-pointer justify-start gap-2.5">
-                <input
-                  type="checkbox"
-                  className="checkbox checkbox-primary"
-                  checked={accountForm.makeDefault}
-                  onChange={(e) =>
-                    setAccountForm((f) => ({
-                      ...f,
-                      makeDefault: e.target.checked,
-                    }))
-                  }
-                />
-                <span className="text-sm">Definir como conta padrão</span>
-              </label>
-              <div className="col-span-full flex justify-end min-[640px]:col-span-2">
-                <button
-                  type="submit"
-                  disabled={!canSubmitAccount || submittingAccount}
-                  className="btn btn-primary"
-                >
-                  {submittingAccount ? (
-                    <Loader2 className="size-4 animate-spin" aria-hidden />
-                  ) : (
-                    <Plus className="size-4" aria-hidden />
-                  )}
-                  <span>
-                    {submittingAccount ? "Salvando…" : "Incluir conta"}
-                  </span>
-                </button>
-              </div>
-            </form>
-          </div>
 
-          {accountEdit ? (
-            <form
-              className="mt-4 rounded-box border border-base-300 p-4"
-              onSubmit={onSubmitAccountEdit}
-            >
-              <h3 className="mb-2 text-base font-semibold">Editar conta</h3>
-              <p className="mb-3 text-sm text-base-content/70">
-                Ajuste nome, tipo ou saldo inicial. Deixe o saldo vazio para
-                remover o lançamento de saldo inicial.
-              </p>
-              <div className="grid grid-cols-1 gap-3 min-[640px]:grid-cols-2">
-                <Input
-                  rootClassName="col-span-full min-[640px]:col-span-2"
-                  label="Nome"
-                  value={accountEdit.name}
-                  onChange={(e) =>
-                    setAccountEdit((f) =>
-                      f ? { ...f, name: e.target.value } : f,
-                    )
-                  }
-                />
-                <Select
-                  label="Tipo"
-                  value={accountEdit.type}
-                  onChange={(e) =>
-                    setAccountEdit((f) =>
-                      f ? { ...f, type: e.target.value as AccountType } : f,
-                    )
-                  }
-                >
-                  <option value="bank">Banco</option>
-                  <option value="wallet">Carteira</option>
-                  <option value="credit_card">Cartão de crédito</option>
-                  <option value="other">Outro</option>
-                </Select>
-                <Input
-                  label="Saldo inicial"
-                  inputMode="decimal"
-                  placeholder="vazio = sem saldo inicial"
-                  value={accountEdit.openingBalance}
-                  onChange={(e) =>
-                    setAccountEdit((f) =>
-                      f
-                        ? {
-                            ...f,
-                            openingBalance: e.target.value.replace(",", "."),
-                          }
-                        : f,
-                    )
-                  }
-                />
-                <Input
-                  label="Data do saldo inicial"
-                  type="date"
-                  value={accountEdit.openingDate}
-                  onChange={(e) =>
-                    setAccountEdit((f) =>
-                      f ? { ...f, openingDate: e.target.value } : f,
-                    )
-                  }
-                />
-                <div className="col-span-full flex justify-end gap-2 min-[640px]:col-span-2">
-                  <button
-                    type="button"
-                    className="btn btn-ghost"
-                    onClick={() => setAccountEdit(null)}
-                  >
-                    <X className="size-4" aria-hidden />
-                    <span>Voltar</span>
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={!canSubmitAccountEdit || submittingAccountEdit}
-                    className="btn btn-primary"
-                  >
-                    {submittingAccountEdit ? (
-                      <Loader2 className="size-4 animate-spin" aria-hidden />
-                    ) : (
-                      <Check className="size-4" aria-hidden />
-                    )}
-                    <span>
-                      {submittingAccountEdit ? "Salvando…" : "Salvar"}
-                    </span>
-                  </button>
-                </div>
-              </div>
-            </form>
-          ) : null}
           {accounts.length === 0 ? (
             <div className="py-6 text-center">
               <WalletCards className="mx-auto size-12 opacity-40" aria-hidden />
               <p className="mt-2 font-semibold">Nenhuma conta cadastrada</p>
               <p className="text-base-content/70">
-                Crie uma conta (banco, carteira ou cartão) no formulário acima
+                Use «Adicionar conta» ou «Adicionar cartão» no topo da página
                 para começar a lançar transações.
               </p>
             </div>
@@ -643,9 +362,7 @@ export function AccountsCard({
                         <button
                           type="button"
                           className="btn btn-ghost btn-sm btn-square"
-                          onClick={() => {
-                            void beginEditAccount(a);
-                          }}
+                          onClick={() => onEditAccount(a)}
                           aria-label={`Editar conta ${a.name}`}
                           title="Editar"
                         >
@@ -745,9 +462,7 @@ export function AccountsCard({
                           <button
                             type="button"
                             className="btn btn-ghost btn-sm btn-square"
-                            onClick={() => {
-                              void beginEditAccount(a);
-                            }}
+                            onClick={() => onEditAccount(a)}
                             aria-label={`Editar conta ${a.name}`}
                             title="Editar"
                           >
