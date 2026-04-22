@@ -5,6 +5,10 @@
 import { useMemo, useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import { ConfirmDialog } from "../../../shared/components/ui/ConfirmDialog";
+import {
+  KebabMenu,
+  KebabMenuItem,
+} from "../../../shared/components/ui/KebabMenu";
 import { errMessage } from "../../../shared/utils/error-message";
 import { useTransactionsStore } from "../store/transactions.store";
 import { useTransactionListItems } from "../hooks/useTransactionListItems";
@@ -58,26 +62,19 @@ export function TransactionsListSection({
       items.map((item) => ({
         ...item,
         actions: (
-          <>
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm btn-square"
-              onClick={() => setEditingId(item.id)}
-              aria-label="Editar transação"
-              title="Editar"
-            >
-              <Pencil className="size-4" aria-hidden />
-            </button>
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm btn-square text-error hover:bg-error/10"
-              onClick={() => setPendingDeleteId(item.id)}
-              aria-label="Excluir transação"
-              title="Excluir"
-            >
-              <Trash2 className="size-4" aria-hidden />
-            </button>
-          </>
+          <KebabMenu ariaLabel={`Ações da transação ${item.title}`}>
+            <KebabMenuItem
+              icon={<Pencil className="size-4" aria-hidden />}
+              label="Editar"
+              onSelect={() => setEditingId(item.id)}
+            />
+            <KebabMenuItem
+              icon={<Trash2 className="size-4" aria-hidden />}
+              label="Excluir"
+              variant="danger"
+              onSelect={() => setPendingDeleteId(item.id)}
+            />
+          </KebabMenu>
         ),
       })),
     [items, setEditingId],
