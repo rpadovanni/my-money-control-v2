@@ -1,8 +1,10 @@
+/* Tailwind v4 + tema DaisyUI (light default). */
 @import "tailwindcss";
 @plugin "daisyui" {
-  themes: bumblebee --default;
+  themes: light --default;
 }
 
+/* Tipografia base e altura mínima da app. */
 @layer base {
   :root {
     font-synthesis: none;
@@ -16,11 +18,22 @@
   }
 
   html {
-    @apply bg-base-100 font-sans text-base-content font-normal antialiased;
+    @apply bg-base-200 font-sans text-base-content font-normal antialiased;
     line-height: 1.4;
   }
 
   body {
-    @apply m-0 min-h-screen;
+    @apply m-0 min-h-screen bg-base-200;
+  }
+}
+
+/* Utilitários locais (não cobertos pelo preset). */
+@layer utilities {
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
   }
 }
