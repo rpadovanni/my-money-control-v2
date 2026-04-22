@@ -28,11 +28,18 @@ Repos e gateways por agregado em `features/<agregado>/services/` reduzem o que `
 
 ## Dashboard composition and props
 
-`DashboardPage` is intentionally a **composition layer**: layout, route-driven `view` flags, and wiring hooks to feature components. Feature UI lives under `src/features/*`; the app shell lives under `src/app/`.
+`DashboardPage` is intentionally a **composition layer**: layout, route-driven `view` flags, and wiring hooks to feature components. Each route renders only what makes sense for it:
+
+- `/` (Início) — KPIs (placeholder) + lista “Transações Recentes” somente leitura, com link «Ver todas».
+- `/transactions` — `TransactionFiltersAndSummary` + `TransactionFormCard` + `TransactionsListSection` (lista com editar/excluir, diálogo de confirmação).
+- `/accounts` — `AccountsCard` (CRUD de contas, transferências, “Pagar fatura”).
+- `/categories` — `CategoriesSection`.
+
+Feature UI vive em `src/features/*`. Componentes específicos das transações (lista, linha, ícone, hooks de view-model) ficam em `features/transactions/`; só componentes genuinamente genéricos (`Badge`, `SummaryMetricCard`, `ConfirmDialog`) ficam em `shared/components/ui/`.
 
 ### Prop drilling: current stance
 
-Today, data flows **shallowly**: the page passes props directly into `DashboardChrome` and into feature cards/sections. Most values are primitives, small DTOs, or stable callbacks from hooks (`useDashboardShell`, `useDashboardBootstrap`, `useDashboardFeedback`, `useTransactionWorkspaceState`).
+Today, data flows **shallowly**: a `DashboardNavbar` lê estados puros de stores (auth, contas, categorias, transações) directamente; o `LoggedInLayout` recebe apenas `online`, `migratingLocal`, `onMigrateLocalToCloud` e o cabeçalho da página, e passa para a navbar. Os hooks com efeitos (`useDashboardShell`, `useDashboardFeedback`, `useDashboardBootstrap`, `useTransactionWorkspaceState`) rodam **uma única vez** no `DashboardPage`.
 
 **We are not introducing Context or extra global state for this** until there is real pain: e.g. the same bundle of five or more props threaded through several layers of presentational components that do not use them, or two unrelated features needing the same “workspace” bundle without a clear owner.
 

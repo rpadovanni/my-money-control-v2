@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Archive,
   Check,
@@ -11,6 +11,7 @@ import {
   WalletCards,
   X,
 } from "lucide-react";
+import { ConfirmDialog } from "../../../shared/components/ui/ConfirmDialog";
 import {
   currentMonthYYYYMM,
   formatMonthYearForDisplay,
@@ -101,40 +102,11 @@ export function AccountsCard({
     accountId: string;
     displayName: string;
   }>(null);
-  const confirmTitleId = useId();
-  const confirmDescId = useId();
-  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
-  const confirmCancelRef = useRef<HTMLButtonElement>(null);
-
-  const dismissArchiveConfirm = useCallback(() => {
-    const restore = previouslyFocusedRef.current;
-    setArchiveConfirm(null);
-    queueMicrotask(() => restore?.focus?.());
-  }, []);
 
   useEffect(() => {
     if (!payInvoice) return;
     payInvoiceAmountRef.current?.focus();
   }, [payInvoice]);
-
-  useEffect(() => {
-    if (!archiveConfirm) return;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        dismissArchiveConfirm();
-      }
-    };
-    document.addEventListener("keydown", onKeyDown);
-    const id = requestAnimationFrame(() => confirmCancelRef.current?.focus());
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      cancelAnimationFrame(id);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [archiveConfirm, dismissArchiveConfirm]);
 
   const defaultAccountId =
     accounts.find((a) => a.isDefault)?.id ?? accounts[0]?.id ?? "";
@@ -270,24 +242,6 @@ export function AccountsCard({
     }
   }
 
-  function onConfirmDialogKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
-    if (e.key !== "Tab") return;
-    const root = e.currentTarget;
-    const focusables = [
-      ...root.querySelectorAll<HTMLButtonElement>("button:not([disabled])"),
-    ];
-    if (focusables.length === 0) return;
-    const first = focusables[0];
-    const last = focusables[focusables.length - 1];
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
-    }
-  }
-
   async function runArchiveAccountAction(id: string) {
     setNotice(null);
     try {
@@ -299,16 +253,13 @@ export function AccountsCard({
   }
 
   function requestArchiveAccount(id: string, displayName: string) {
-    previouslyFocusedRef.current = document.activeElement as HTMLElement | null;
     setArchiveConfirm({ accountId: id, displayName });
   }
 
   async function handleArchiveConfirmPrimary() {
     if (!archiveConfirm) return;
     const state = archiveConfirm;
-    const restore = previouslyFocusedRef.current;
     setArchiveConfirm(null);
-    queueMicrotask(() => restore?.focus?.());
     await runArchiveAccountAction(state.accountId);
   }
 
@@ -437,7 +388,7 @@ export function AccountsCard({
                     }))
                   }
                 />
-                <span className="label-text">Definir como conta padrão</span>
+                <span className="text-sm">Definir como conta padrão</span>
               </label>
               <div className="col-span-full flex justify-end min-[640px]:col-span-2">
                 <button
@@ -822,54 +773,19 @@ export function AccountsCard({
         </div>
       </div>
 
-      {archiveConfirm ? (
-        <div
-          className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 p-4"
-          role="presentation"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) dismissArchiveConfirm();
-          }}
-        >
-          <div
-            className="w-full max-w-[420px] rounded-box border border-base-300 bg-base-100 p-5 shadow"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={confirmTitleId}
-            aria-describedby={confirmDescId}
-            onKeyDown={onConfirmDialogKeyDown}
-          >
-            <h2 id={confirmTitleId} className="mb-2.5 mt-0 text-lg font-bold">
-              Arquivar conta?
-            </h2>
-            <p
-              id={confirmDescId}
-              className="mb-4 mt-0 text-sm text-base-content/70"
-            >
-              Arquivar a conta &quot;{archiveConfirm.displayName}&quot;? Você
-              pode restaurá-la depois em contas arquivadas.
-            </p>
-            <div className="flex flex-wrap justify-end gap-2">
-              <button
-                ref={confirmCancelRef}
-                type="button"
-                className="btn btn-ghost"
-                onClick={dismissArchiveConfirm}
-              >
-                <X className="size-4" aria-hidden />
-                <span>Voltar</span>
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={() => void handleArchiveConfirmPrimary()}
-              >
-                <Archive className="size-4" aria-hidden />
-                <span>Arquivar</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <ConfirmDialog
+        open={archiveConfirm !== null}
+        title="Arquivar conta?"
+        description={
+          archiveConfirm
+            ? `Arquivar a conta "${archiveConfirm.displayName}"? Você pode restaurá-la depois em contas arquivadas.`
+            : undefined
+        }
+        confirmLabel="Arquivar"
+        confirmIcon={<Archive className="size-4" aria-hidden />}
+        onConfirm={() => void handleArchiveConfirmPrimary()}
+        onCancel={() => setArchiveConfirm(null)}
+      />
     </>
   );
 }

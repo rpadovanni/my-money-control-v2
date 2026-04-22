@@ -1,56 +1,121 @@
-import { ArrowUp, Download, Loader2, X } from "lucide-react";
+/**
+ * Página única do dashboard: o `pathname` define a “vista” (início, contas,
+ * transações, categorias). O layout (`LoggedInLayout`) é comum; o conteúdo
+ * central muda por rota:
+ *
+ * - `/` (Início) — resumo geral: KPIs (placeholder) + lista de transações
+ *   recentes (somente leitura, com link «Ver todas»).
+ * - `/transactions` — filtros + resumo mensal + formulário + lista com
+ *   editar/excluir.
+ * - `/accounts` — contas (CRUD, transferências, “Pagar fatura”).
+ * - `/categories` — categorias (CRUD).
+ */
+import { useMemo } from "react";
+import { ArrowUp, Download, Inbox, Loader2, X } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { AccountsCard } from "../../features/accounts/components/AccountsCard";
-import { useAccountsStore } from "../../features/accounts/store/accounts.store";
 import { useAuthStore } from "../../features/auth/store/auth.store";
 import { CategoriesSection } from "../../features/categories/components/CategoriesSection";
 import { useCategoriesStore } from "../../features/categories/store/categories.store";
 import { TransactionFiltersAndSummary } from "../../features/transactions/components/TransactionFiltersAndSummary";
 import { TransactionFormCard } from "../../features/transactions/components/TransactionFormCard";
-import { TransactionListCard } from "../../features/transactions/components/TransactionListCard";
+import { TransactionList } from "../../features/transactions/components/TransactionList";
+import { TransactionsListSection } from "../../features/transactions/components/TransactionsListSection";
+import { useTransactionListItems } from "../../features/transactions/hooks/useTransactionListItems";
 import { useTransactionsStore } from "../../features/transactions/store/transactions.store";
 import { isSupabaseConfigured } from "../../shared/lib/supabase/client";
-import { DashboardChrome } from "../components/DashboardChrome";
+import { DashboardHomeMetricsPlaceholder } from "../components/DashboardHomeMetricsPlaceholder";
+import { LoggedInLayout } from "../components/LoggedInLayout";
 import { useDashboardBootstrap } from "../hooks/useDashboardBootstrap";
 import { useDashboardFeedback } from "../hooks/useDashboardFeedback";
 import { useDashboardShell } from "../hooks/useDashboardShell";
 import { useTransactionWorkspaceState } from "../hooks/useTransactionWorkspaceState";
 
+type DashboardView = "home" | "accounts" | "transactions" | "categories";
+
+const HOME_TX_PREVIEW_LIMIT = 8;
+
+function viewFromPathname(pathname: string): DashboardView {
+  if (pathname === "/accounts") return "accounts";
+  if (pathname === "/transactions") return "transactions";
+  if (pathname === "/categories") return "categories";
+  return "home";
+}
+
+const LAYOUT_PAGE: Record<DashboardView, { title: string; subtitle?: string }> =
+  {
+    home: {
+      title: "Dashboard",
+      subtitle: "Visão geral das suas finanças",
+    },
+    transactions: { title: "Transações" },
+    accounts: { title: "Contas" },
+    categories: { title: "Categorias" },
+  };
+
+function HomeEmptyState() {
+  return (
+    <>
+      <Inbox className="mx-auto size-12 opacity-40" aria-hidden />
+      <p className="mt-2 font-semibold text-base-content">
+        Nenhuma transação no mês corrente
+      </p>
+      <p className="text-sm text-base-content/70">
+        Use “Transações” no menu para registar lançamentos ou alterar o mês.
+      </p>
+    </>
+  );
+}
+
+function TransactionsEmptyState({
+  formPlacement,
+}: {
+  formPlacement: "aside" | "above";
+}) {
+  return (
+    <>
+      <Inbox className="mx-auto size-12 opacity-40" aria-hidden />
+      <p className="mt-2 font-semibold text-base-content">
+        Nenhuma transação neste período
+      </p>
+      <p className="text-sm text-base-content/70">
+        Ajuste mês, conta ou tipo nos filtros — ou inclua um lançamento{" "}
+        {formPlacement === "aside"
+          ? "no formulário ao lado"
+          : "no formulário acima"}
+        .
+      </p>
+    </>
+  );
+}
+
 export function DashboardPage() {
+  // Carrega dados iniciais (stores / auth) uma vez na montagem.
   useDashboardBootstrap();
 
+  const location = useLocation();
+  const view = viewFromPathname(location.pathname);
+  const page = LAYOUT_PAGE[view];
+
+  // --- Auth & modo nuvem (para o alerta condicional de categorias) ---
   const authStatus = useAuthStore((s) => s.auth.status);
   const authSession = useAuthStore((s) => s.auth.session);
-  const signOut = useAuthStore((s) => s.signOut);
-
-  const txReady = useTransactionsStore((s) => s.transactions.ready);
-  const accReady = useAccountsStore((s) => s.accounts.ready);
-  const catReady = useCategoriesStore((s) => s.categories.ready);
-  const categoriesInitError = useCategoriesStore((s) => s.categories.initError);
-  const authReady = authStatus === "signedIn" || authStatus === "signedOut";
-  const ready = authReady && txReady && accReady && catReady;
   const usingCloud =
     isSupabaseConfigured() &&
     authStatus === "signedIn" &&
     Boolean(authSession?.user);
 
+  // --- Prontidão das stores (apenas para o erro de categorias na nuvem) ---
+  const catReady = useCategoriesStore((s) => s.categories.ready);
+  const categoriesInitError = useCategoriesStore((s) => s.categories.initError);
   const initCat = useCategoriesStore((s) => s.categoriesInit);
+
+  // Necessário para a vista de Início (preview de transações) e para o
+  // botão de transferência dentro da `AccountsCard`.
+  const txRows = useTransactionsStore((s) => s.transactions.items);
   const addTransaction = useTransactionsStore((s) => s.addTransaction);
 
-  const location = useLocation();
-  const view: "home" | "accounts" | "transactions" | "categories" =
-    location.pathname === "/accounts"
-      ? "accounts"
-      : location.pathname === "/transactions"
-        ? "transactions"
-        : location.pathname === "/categories"
-          ? "categories"
-          : "home";
-
-  const showTxFiltersSummary = view === "home" || view === "transactions";
-  const showAccounts = view === "home" || view === "accounts";
-  const showTxWorkspace = view === "home" || view === "transactions";
-
+  // --- Shell: scroll, PWA, offline ---
   const {
     online,
     showScrollTop,
@@ -59,6 +124,7 @@ export function DashboardPage() {
     dismissPwaInstall,
   } = useDashboardShell();
 
+  // --- Avisos, toast, migração local → nuvem ---
   const {
     notice,
     setNotice,
@@ -68,6 +134,7 @@ export function DashboardPage() {
     onMigrateLocalToCloud,
   } = useDashboardFeedback();
 
+  // --- Formulário / lista de transações (estado partilhado no workspace) ---
   const {
     editingId,
     setEditingId,
@@ -80,18 +147,29 @@ export function DashboardPage() {
     filterCategories,
   } = useTransactionWorkspaceState();
 
+  // Preview da Home: transações do mês corrente (filtro inicial do store)
+  // limitadas a `HOME_TX_PREVIEW_LIMIT`. O hook está sempre presente
+  // (regras dos hooks); o resultado só é renderizado em `/`.
+  const allListItems = useTransactionListItems(
+    txRows,
+    txAccountsPicker,
+    txArchivedPicker,
+    txCategoriesPicker,
+  );
+  const homePreview = useMemo(
+    () => allListItems.slice(0, HOME_TX_PREVIEW_LIMIT),
+    [allListItems],
+  );
+
   return (
-    <DashboardChrome
+    <LoggedInLayout
       online={online}
-      usingCloud={usingCloud}
-      authReady={authReady}
-      ready={ready}
-      authSession={authSession}
       migratingLocal={migratingLocal}
       onMigrateLocalToCloud={() => void onMigrateLocalToCloud()}
-      onSignOut={() => void signOut()}
-      view={view}
+      pageTitle={page.title}
+      pageSubtitle={page.subtitle}
     >
+      {/* Erro global (ex.: falha ao gravar) */}
       {notice ? (
         <div className="alert alert-error mb-4" role="alert" aria-live="polite">
           <span>{notice.message}</span>
@@ -106,10 +184,7 @@ export function DashboardPage() {
         </div>
       ) : null}
 
-      {view === "categories" ? (
-        <CategoriesSection pushToast={pushToast} />
-      ) : null}
-
+      {/* Nuvem: falha ao carregar categorias */}
       {usingCloud && categoriesInitError ? (
         <div className="alert alert-error mb-4" role="alert" aria-live="polite">
           <span>{categoriesInitError}</span>
@@ -127,27 +202,28 @@ export function DashboardPage() {
         </div>
       ) : null}
 
-      {showTxFiltersSummary ? (
-        <TransactionFiltersAndSummary
-          accounts={filterAccounts}
-          categories={filterCategories}
-        />
+      {/* Início: KPIs + transações recentes (só leitura) */}
+      {view === "home" ? (
+        <>
+          <DashboardHomeMetricsPlaceholder />
+          <div className="mt-4">
+            <TransactionList
+              items={homePreview}
+              seeAllHref="/transactions"
+              emptySlot={<HomeEmptyState />}
+            />
+          </div>
+        </>
       ) : null}
 
-      {showAccounts ? (
-        <section
-          className={
-            showTxWorkspace
-              ? "mt-4 grid grid-cols-1 gap-4 min-[900px]:grid-cols-2"
-              : "mt-4"
-          }
-        >
-          <AccountsCard
-            onAddTransfer={(input) => addTransaction(input)}
-            pushToast={pushToast}
-            setNotice={setNotice}
+      {/* Transações: filtros + resumo + formulário + lista com ações */}
+      {view === "transactions" ? (
+        <div className="flex flex-col gap-4">
+          <TransactionFiltersAndSummary
+            accounts={filterAccounts}
+            categories={filterCategories}
           />
-          {showTxWorkspace ? (
+          <section className="grid grid-cols-1 gap-4 min-[900px]:grid-cols-2">
             <TransactionFormCard
               accounts={txAccountsPicker}
               archivedAccounts={txArchivedPicker}
@@ -160,54 +236,36 @@ export function DashboardPage() {
               submittingTx={submittingTx}
               setSubmittingTx={setSubmittingTx}
             />
-          ) : null}
-        </section>
+            <TransactionsListSection
+              accounts={txAccountsPicker}
+              archivedAccounts={txArchivedPicker}
+              categories={txCategoriesPicker}
+              pushToast={pushToast}
+              setNotice={setNotice}
+              editingId={editingId}
+              setEditingId={setEditingId}
+              setSubmittingTx={setSubmittingTx}
+              emptySlot={<TransactionsEmptyState formPlacement="aside" />}
+            />
+          </section>
+        </div>
       ) : null}
 
-      {!showAccounts && showTxWorkspace ? (
-        <section className="mt-4 grid grid-cols-1 gap-4 min-[900px]:grid-cols-2">
-          <TransactionFormCard
-            accounts={txAccountsPicker}
-            archivedAccounts={txArchivedPicker}
-            categories={txCategoriesPicker}
-            categoriesReady={catReady}
-            pushToast={pushToast}
-            setNotice={setNotice}
-            editingId={editingId}
-            setEditingId={setEditingId}
-            submittingTx={submittingTx}
-            setSubmittingTx={setSubmittingTx}
-          />
-          <TransactionListCard
-            accounts={txAccountsPicker}
-            archivedAccounts={txArchivedPicker}
-            categories={txCategoriesPicker}
-            pushToast={pushToast}
-            setNotice={setNotice}
-            editingId={editingId}
-            setEditingId={setEditingId}
-            setSubmittingTx={setSubmittingTx}
-            transactionsRouteActive={view === "transactions"}
-          />
-        </section>
+      {/* Contas: CRUD + transferências + “Pagar fatura” */}
+      {view === "accounts" ? (
+        <AccountsCard
+          onAddTransfer={(input) => addTransaction(input)}
+          pushToast={pushToast}
+          setNotice={setNotice}
+        />
       ) : null}
 
-      {showAccounts && showTxWorkspace ? (
-        <section className="mt-4">
-          <TransactionListCard
-            accounts={txAccountsPicker}
-            archivedAccounts={txArchivedPicker}
-            categories={txCategoriesPicker}
-            pushToast={pushToast}
-            setNotice={setNotice}
-            editingId={editingId}
-            setEditingId={setEditingId}
-            setSubmittingTx={setSubmittingTx}
-            transactionsRouteActive={false}
-          />
-        </section>
+      {/* Categorias */}
+      {view === "categories" ? (
+        <CategoriesSection pushToast={pushToast} />
       ) : null}
 
+      {/* Feedback efémero (toast) */}
       {toast ? (
         <div
           className="toast toast-center toast-bottom z-[150]"
@@ -222,6 +280,7 @@ export function DashboardPage() {
         </div>
       ) : null}
 
+      {/* Flutuantes globais da página */}
       {showScrollTop ? (
         <button
           type="button"
@@ -264,6 +323,6 @@ export function DashboardPage() {
           </div>
         </div>
       ) : null}
-    </DashboardChrome>
+    </LoggedInLayout>
   );
 }
