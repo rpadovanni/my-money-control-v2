@@ -1,9 +1,9 @@
 /**
  * Modal único para criar e editar categorias.
  *
- * Modo «create» — campo de nome vazio; o submit chama `addCategory(label)`.
+ * Modo «create» — campo de nome vazio; o submit chama `addCategory(label, type)`.
  * Modo «edit» — pré-preenche com o nome actual; o submit chama
- * `updateCategory(id, label)`.
+ * `updateCategory(id, label, type)`.
  *
  * O título e o rótulo do botão primário ajustam-se conforme o modo.
  */
@@ -11,10 +11,12 @@ import { useEffect, useRef, useState } from "react";
 import { Check, Loader2, Plus, X } from "lucide-react";
 import { Modal } from "../../../shared/components/ui/Modal";
 import { Input } from "../../../shared/components/ui/Input";
+import { Select } from "../../../shared/components/ui/Select";
 import { errMessage } from "../../../shared/utils/error-message";
 import { useCategoriesStore } from "../store/categories.store";
+import type { CategoryType } from "../types/category";
 
-export type EditingCategory = { id: string; label: string };
+export type EditingCategory = { id: string; label: string; type: CategoryType };
 
 export type CategoryFormDialogProps = {
   open: boolean;
@@ -41,13 +43,25 @@ export function CategoryFormDialog({
 
   const inputRef = useRef<HTMLInputElement>(null);
   const [label, setLabel] = useState("");
+  const [type, setType] = useState<CategoryType>("expense");
+  const initialLabel =
+    mode === "edit" && editingCategory ? editingCategory.label : "";
+  const initialType =
+    mode === "edit" && editingCategory ? editingCategory.type : "expense";
+  const initialKey = `${open}:${mode}:${editingCategory?.id ?? "new"}:${initialLabel}:${initialType}`;
+  const [externalKey, setExternalKey] = useState(initialKey);
   const [submitting, setSubmitting] = useState(false);
+
+  if (externalKey !== initialKey) {
+    setExternalKey(initialKey);
+    setLabel(initialLabel);
+    setType(initialType);
+  }
 
   useEffect(() => {
     if (!open) return;
-    setLabel(mode === "edit" && editingCategory ? editingCategory.label : "");
     queueMicrotask(() => inputRef.current?.focus());
-  }, [open, mode, editingCategory]);
+  }, [open]);
 
   const trimmed = label.trim();
   const canSubmit = trimmed.length > 0 && !submitting;
@@ -58,10 +72,10 @@ export function CategoryFormDialog({
     setSubmitting(true);
     try {
       if (mode === "edit" && editingCategory) {
-        await updateCategory(editingCategory.id, trimmed);
+        await updateCategory(editingCategory.id, trimmed, type);
         pushToast("success", "Categoria atualizada.");
       } else {
-        await addCategory(trimmed);
+        await addCategory(trimmed, type);
         pushToast("success", "Categoria criada.");
       }
       onClose();
@@ -90,7 +104,16 @@ export function CategoryFormDialog({
           autoComplete="off"
         />
 
-        <div className="modal-action flex justify-end gap-2">
+        <Select
+          label="Tipo"
+          value={type}
+          onChange={(e) => setType(e.target.value as CategoryType)}
+        >
+          <option value="expense">Despesa</option>
+          <option value="income">Receita</option>
+        </Select>
+
+        <div className="modal-action flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <button type="button" className="btn btn-ghost" onClick={onClose}>
             <X className="size-4" aria-hidden />
             <span>Voltar</span>

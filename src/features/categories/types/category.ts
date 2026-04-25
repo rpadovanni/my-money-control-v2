@@ -1,1 +1,5 @@
-export type { Category, CategoryRecord } from '../../../domain/categories/types'
+export type {
+  Category,
+  CategoryRecord,
+  CategoryType,
+} from '../../../domain/categories/types'

@@ -1,7 +1,7 @@
 import { isRemoteActive } from './data-source'
 import { localCategoriesRepo } from '../db/categories.repo'
 import { remoteCategoriesRepo } from './remote-categories.repo'
-import type { CategoryRecord } from '../../../domain/categories/types'
+import type { CategoryRecord, CategoryType } from '../../../domain/categories/types'
 
 export const categoriesRepo = {
   list(): Promise<CategoryRecord[]> {
@@ -10,11 +10,15 @@ export const categoriesRepo = {
   seedIfEmpty(): Promise<void> {
     return isRemoteActive() ? remoteCategoriesRepo.seedIfEmpty() : localCategoriesRepo.seedIfEmpty()
   },
-  create(label: string): Promise<CategoryRecord> {
-    return isRemoteActive() ? remoteCategoriesRepo.create(label) : localCategoriesRepo.create(label)
+  create(label: string, type: CategoryType): Promise<CategoryRecord> {
+    return isRemoteActive()
+      ? remoteCategoriesRepo.create(label, type)
+      : localCategoriesRepo.create(label, type)
   },
-  update(id: string, label: string): Promise<CategoryRecord> {
-    return isRemoteActive() ? remoteCategoriesRepo.update(id, label) : localCategoriesRepo.update(id, label)
+  update(id: string, label: string, type: CategoryType): Promise<CategoryRecord> {
+    return isRemoteActive()
+      ? remoteCategoriesRepo.update(id, label, type)
+      : localCategoriesRepo.update(id, label, type)
   },
   remove(id: string): Promise<void> {
     return isRemoteActive() ? remoteCategoriesRepo.remove(id) : localCategoriesRepo.remove(id)

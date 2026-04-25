@@ -13,7 +13,7 @@
  *  - após uma submissão bem-sucedida
  * Quem chama deve usar este sinal para fechar o modal e limpar `editingId`.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Loader2, Plus, X } from "lucide-react";
 import { todayISODate } from "../../../shared/lib/dates";
 import { errMessage } from "../../../shared/utils/error-message";
@@ -21,6 +21,7 @@ import { Input } from "../../../shared/components/ui/Input";
 import { Select } from "../../../shared/components/ui/Select";
 import { useTransactionsStore } from "../store/transactions.store";
 import type { TransactionType } from "../types/transactions";
+import type { CategoryType } from "../../../domain/categories/types";
 
 export type TxFormAccountOption = {
   id: string;
@@ -32,6 +33,7 @@ export type TxFormAccountOption = {
 export type TxFormCategoryOption = {
   id: string;
   label: string;
+  type: CategoryType;
   system?: boolean;
 };
 
@@ -99,18 +101,58 @@ export function TransactionForm({
     );
   }
 
+  const categoryMatchesTransactionType = useCallback((
+    category: TxFormCategoryOption,
+    type: TransactionType,
+  ): boolean => {
+    if (type === "transfer") return category.type === "transfer";
+    return category.type === type;
+  }, []);
+
+  const fallbackCategoryForType = useCallback((
+    nextType: TransactionType,
+    currentCategoryId: string,
+  ): string => {
+    if (nextType === "transfer") return "transfer";
+
+    const current = categories.find((c) => c.id === currentCategoryId);
+    if (current && categoryMatchesTransactionType(current, nextType)) {
+      return current.id;
+    }
+
+    return (
+      categories.find((c) => categoryMatchesTransactionType(c, nextType))?.id ??
+      currentCategoryId
+    );
+  }, [categories, categoryMatchesTransactionType]);
+
+  const compatibleCategories = useMemo(
+    () =>
+      categories.filter((category) =>
+        categoryMatchesTransactionType(category, form.type),
+      ),
+    [categories, categoryMatchesTransactionType, form.type],
+  );
+
   useEffect(() => {
     if (!categoriesReady || categories.length === 0) return;
     const ids = new Set(categories.map((c) => c.id));
     if (form.type === "transfer") return;
-    if (!ids.has(form.category)) {
-      const fallback =
-        (ids.has("other")
-          ? "other"
-          : categories.find((c) => c.id !== "transfer")?.id) ?? form.category;
+    if (
+      !ids.has(form.category) ||
+      !compatibleCategories.some((c) => c.id === form.category)
+    ) {
+      const fallback = fallbackCategoryForType(form.type, form.category);
       setForm((f) => ({ ...f, category: fallback }));
     }
-  }, [categoriesReady, categories, form.category, form.type]);
+  }, [
+    categoriesReady,
+    categories,
+    compatibleCategories,
+    fallbackCategoryForType,
+    form.category,
+    form.type,
+  ]);
 
   useEffect(() => {
     if (defaultAccountId && !form.accountId) {
@@ -171,7 +213,7 @@ export function TransactionForm({
           Boolean(form.fromAccountId) &&
           Boolean(form.toAccountId) &&
           form.fromAccountId !== form.toAccountId
-        : amountOk && amountNum > 0;
+        : amountOk && amountNum > 0 && Boolean(form.category);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -289,9 +331,7 @@ export function TransactionForm({
               category:
                 t === "transfer"
                   ? "transfer"
-                  : f.category === "transfer"
-                    ? "other"
-                    : f.category,
+                  : fallbackCategoryForType(t, f.category),
             }));
           }}
         >
@@ -390,13 +430,11 @@ export function TransactionForm({
               setForm((f) => ({ ...f, category: e.target.value }))
             }
           >
-            {categories
-              .filter((c) => c.id !== "transfer")
-              .map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                </option>
-              ))}
+            {compatibleCategories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.label}
+              </option>
+            ))}
           </Select>
         </>
       ) : null}
@@ -419,7 +457,7 @@ export function TransactionForm({
         }
       />
 
-      <div className="modal-action col-span-full flex justify-end gap-2 min-[640px]:col-span-2">
+      <div className="modal-action col-span-full flex flex-col-reverse gap-2 min-[640px]:col-span-2 min-[640px]:flex-row min-[640px]:justify-end">
         <button type="button" className="btn btn-ghost" onClick={onClose}>
           <X className="size-4" aria-hidden />
           <span>Voltar</span>

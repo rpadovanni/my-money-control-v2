@@ -62,13 +62,25 @@ create table if not exists public.categories (
   user_id uuid not null references auth.users (id) on delete cascade,
   id text not null,
   label text not null,
+  type text not null default 'expense',
   system boolean not null default false,
   created_at timestamptz not null,
   updated_at timestamptz not null,
   primary key (user_id, id)
 );
 
+alter table public.categories add column if not exists type text not null default 'expense';
+
+update public.categories
+set type = 'income'
+where id in ('salary', 'freelance') and type = 'expense';
+
+update public.categories
+set type = 'transfer'
+where id = 'transfer' and type <> 'transfer';
+
 create index if not exists categories_user_label_idx on public.categories (user_id, label);
+create index if not exists categories_user_type_idx on public.categories (user_id, type);
 
 alter table public.categories enable row level security;
 

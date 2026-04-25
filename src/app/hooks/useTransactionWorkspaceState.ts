@@ -33,6 +33,7 @@ export function useTransactionWorkspaceState() {
       categories.map((c) => ({
         id: c.id,
         label: c.label,
+        type: c.type,
         system: c.system,
       })),
     [categories],
