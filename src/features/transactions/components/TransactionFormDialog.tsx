@@ -41,11 +41,17 @@ export function TransactionFormDialog({
 
   return (
     <Modal open={open} onClose={onClose} title={title} size="lg">
-      <TransactionForm
-        {...formProps}
-        editingId={editingId}
-        onClose={onClose}
-      />
+      {open ? (
+        // Renderizamos o formulário só enquanto o modal está aberto: assim o
+        // estado interno (campos, rascunho) é descartado a cada fecho. Evita
+        // que dados de uma criação anterior reapareçam ao reabrir «Nova
+        // transação».
+        <TransactionForm
+          {...formProps}
+          editingId={editingId}
+          onClose={onClose}
+        />
+      ) : null}
     </Modal>
   );
 }

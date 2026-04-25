@@ -64,15 +64,11 @@ export function Modal({
   }, [open]);
 
   function onDialogClick(e: React.MouseEvent<HTMLDialogElement>) {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    const rect = dialog.getBoundingClientRect();
-    const clickedInsideBox =
-      e.clientX >= rect.left &&
-      e.clientX <= rect.right &&
-      e.clientY >= rect.top &&
-      e.clientY <= rect.bottom;
-    if (!clickedInsideBox) onClose();
+    // Em `<dialog>` modal, cliques no backdrop têm `target === dialog`.
+    // Cliques dentro de `.modal-box` (ou descendentes) têm o próprio elemento
+    // como alvo. Esta heurística é mais robusta do que comparar coordenadas
+    // contra o rect do dialog (que cobre o viewport inteiro).
+    if (e.target === dialogRef.current) onClose();
   }
 
   function onDialogClose() {

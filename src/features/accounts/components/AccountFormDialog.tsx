@@ -9,7 +9,8 @@
  * e respectiva data.
  *
  * Em ambos os casos, o título do modal reflecte o tipo (conta vs cartão) para
- * ajudar a leitura.
+ * ajudar a leitura. O formulário só é montado enquanto `open === true`, para
+ * descartar rascunho ao fechar.
  */
 import { useEffect, useRef, useState } from "react";
 import { Check, CreditCard, Loader2, Plus, X } from "lucide-react";
@@ -37,6 +38,28 @@ export type AccountFormDialogProps = {
   setNotice: (n: null | { variant: "error"; message: string }) => void;
 };
 
+export function AccountFormDialog(props: AccountFormDialogProps) {
+  const { open, mode, onClose, editingAccount } = props;
+  const isCard =
+    mode === "edit" && editingAccount
+      ? editingAccount.type === "credit_card"
+      : props.defaultType === "credit_card";
+  const title =
+    mode === "edit"
+      ? isCard
+        ? "Editar cartão"
+        : "Editar conta"
+      : isCard
+        ? "Novo cartão"
+        : "Nova conta";
+
+  return (
+    <Modal open={open} onClose={onClose} title={title} size="md">
+      {open ? <AccountFormDialogBody {...props} /> : null}
+    </Modal>
+  );
+}
+
 type FormState = {
   name: string;
   type: AccountType;
@@ -55,8 +78,7 @@ function emptyForm(defaultType: AccountType): FormState {
   };
 }
 
-export function AccountFormDialog({
-  open,
+function AccountFormDialogBody({
   mode,
   defaultType,
   editingAccount,
@@ -74,50 +96,53 @@ export function AccountFormDialog({
 
   const nameRef = useRef<HTMLInputElement>(null);
 
-  const [form, setForm] = useState<FormState>(() => emptyForm(defaultType));
+  const [form, setForm] = useState<FormState>(() =>
+    mode === "edit" && editingAccount
+      ? {
+          name: editingAccount.name,
+          type: editingAccount.type,
+          openingBalance: "",
+          openingDate: todayISODate(),
+          makeDefault: editingAccount.isDefault,
+        }
+      : emptyForm(defaultType),
+  );
   const [submitting, setSubmitting] = useState(false);
-  const [loadingOpening, setLoadingOpening] = useState(false);
+  const [loadingOpening, setLoadingOpening] = useState(
+    mode === "edit" && editingAccount !== null,
+  );
 
-  // Reinicializa quando abre / muda contexto (criar↔editar, defaultType, conta).
   useEffect(() => {
-    if (!open) return;
-    if (mode === "edit" && editingAccount) {
-      setForm({
-        name: editingAccount.name,
-        type: editingAccount.type,
-        openingBalance: "",
-        openingDate: todayISODate(),
-        makeDefault: editingAccount.isDefault,
+    if (mode !== "edit" || !editingAccount) return;
+    let cancelled = false;
+    setLoadingOpening(true);
+    getAccountOpeningForEdit(editingAccount.id)
+      .then((snap) => {
+        if (cancelled) return;
+        setForm((f) => ({
+          ...f,
+          openingBalance:
+            snap.amountCents != null ? String(snap.amountCents / 100) : "",
+          openingDate: snap.date,
+        }));
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setNotice({ variant: "error", message: errMessage(err) });
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingOpening(false);
       });
-      setLoadingOpening(true);
-      getAccountOpeningForEdit(editingAccount.id)
-        .then((snap) => {
-          setForm((f) => ({
-            ...f,
-            openingBalance:
-              snap.amountCents != null ? String(snap.amountCents / 100) : "",
-            openingDate: snap.date,
-          }));
-        })
-        .catch((err) => {
-          setNotice({ variant: "error", message: errMessage(err) });
-        })
-        .finally(() => setLoadingOpening(false));
-    } else {
-      setForm(emptyForm(defaultType));
-    }
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, editingAccount, getAccountOpeningForEdit, setNotice]);
+
+  useEffect(() => {
     queueMicrotask(() => nameRef.current?.focus());
-  }, [open, mode, defaultType, editingAccount, getAccountOpeningForEdit, setNotice]);
+  }, []);
 
   const isCard = form.type === "credit_card";
-  const title =
-    mode === "edit"
-      ? isCard
-        ? "Editar cartão"
-        : "Editar conta"
-      : isCard
-        ? "Novo cartão"
-        : "Nova conta";
 
   const openingRaw = form.openingBalance.trim().replace(",", ".");
   const openingValid =
@@ -164,10 +189,7 @@ export function AccountFormDialog({
           openingDate:
             openingBalanceCents != null ? form.openingDate : undefined,
         });
-        pushToast(
-          "success",
-          isCard ? "Cartão criado." : "Conta criada.",
-        );
+        pushToast("success", isCard ? "Cartão criado." : "Conta criada.");
       }
       onClose();
     } catch (err) {
@@ -178,117 +200,108 @@ export function AccountFormDialog({
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={title} size="md">
-      <form
-        className="grid grid-cols-1 gap-3 min-[640px]:grid-cols-2"
-        onSubmit={onSubmit}
+    <form
+      className="grid grid-cols-1 gap-3 min-[640px]:grid-cols-2"
+      onSubmit={onSubmit}
+    >
+      <Input
+        rootClassName="col-span-full min-[640px]:col-span-2"
+        ref={nameRef}
+        label="Nome"
+        placeholder={isCard ? "ex.: Nubank" : "ex.: Bradesco"}
+        autoComplete="off"
+        maxLength={120}
+        value={form.name}
+        onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+      />
+
+      <Select
+        label="Tipo"
+        value={form.type}
+        onChange={(e) =>
+          setForm((f) => ({ ...f, type: e.target.value as AccountType }))
+        }
       >
-        <Input
-          rootClassName="col-span-full min-[640px]:col-span-2"
-          ref={nameRef}
-          label="Nome"
-          placeholder={isCard ? "ex.: Nubank" : "ex.: Bradesco"}
-          autoComplete="off"
-          maxLength={120}
-          value={form.name}
-          onChange={(e) =>
-            setForm((f) => ({ ...f, name: e.target.value }))
-          }
-        />
+        <option value="bank">Banco</option>
+        <option value="wallet">Carteira</option>
+        <option value="credit_card">Cartão de crédito</option>
+        <option value="other">Outro</option>
+      </Select>
 
-        <Select
-          label="Tipo"
-          value={form.type}
-          onChange={(e) =>
-            setForm((f) => ({
-              ...f,
-              type: e.target.value as AccountType,
-            }))
-          }
-        >
-          <option value="bank">Banco</option>
-          <option value="wallet">Carteira</option>
-          <option value="credit_card">Cartão de crédito</option>
-          <option value="other">Outro</option>
-        </Select>
+      <Input
+        label={
+          mode === "edit" ? "Saldo inicial" : "Saldo inicial (opcional)"
+        }
+        inputMode="decimal"
+        placeholder={
+          mode === "edit"
+            ? "vazio = sem saldo inicial"
+            : "ex.: 1500 ou −200"
+        }
+        disabled={loadingOpening}
+        value={form.openingBalance}
+        onChange={(e) =>
+          setForm((f) => ({
+            ...f,
+            openingBalance: e.target.value.replace(",", "."),
+          }))
+        }
+      />
 
+      {mode === "edit" ? (
         <Input
-          label={
-            mode === "edit"
-              ? "Saldo inicial"
-              : "Saldo inicial (opcional)"
-          }
-          inputMode="decimal"
-          placeholder={
-            mode === "edit"
-              ? "vazio = sem saldo inicial"
-              : "ex.: 1500 ou −200"
-          }
+          label="Data do saldo inicial"
+          type="date"
           disabled={loadingOpening}
-          value={form.openingBalance}
+          value={form.openingDate}
           onChange={(e) =>
-            setForm((f) => ({
-              ...f,
-              openingBalance: e.target.value.replace(",", "."),
-            }))
+            setForm((f) => ({ ...f, openingDate: e.target.value }))
           }
         />
-
-        {mode === "edit" ? (
-          <Input
-            label="Data do saldo inicial"
-            type="date"
-            disabled={loadingOpening}
-            value={form.openingDate}
+      ) : (
+        <label className="label flex cursor-pointer items-center justify-start gap-2.5">
+          <input
+            type="checkbox"
+            className="checkbox checkbox-primary"
+            checked={form.makeDefault}
             onChange={(e) =>
-              setForm((f) => ({ ...f, openingDate: e.target.value }))
+              setForm((f) => ({ ...f, makeDefault: e.target.checked }))
             }
           />
-        ) : (
-          <label className="label flex cursor-pointer items-center justify-start gap-2.5">
-            <input
-              type="checkbox"
-              className="checkbox checkbox-primary"
-              checked={form.makeDefault}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, makeDefault: e.target.checked }))
-              }
-            />
-            <span className="text-sm">Definir como conta padrão</span>
-          </label>
-        )}
+          <span className="text-sm">Definir como conta padrão</span>
+        </label>
+      )}
 
-        <div className="modal-action col-span-full flex flex-col-reverse gap-2 min-[640px]:col-span-2 min-[640px]:flex-row min-[640px]:justify-end">
-          <button type="button" className="btn btn-ghost" onClick={onClose}>
-            <X className="size-4" aria-hidden />
-            <span>Voltar</span>
-          </button>
-          <button
-            type="submit"
-            disabled={!canSubmit || submitting || loadingOpening}
-            className="btn btn-primary"
-          >
-            {submitting || loadingOpening ? (
-              <Loader2 className="size-4 animate-spin" aria-hidden />
-            ) : mode === "edit" ? (
-              <Check className="size-4" aria-hidden />
-            ) : isCard ? (
-              <CreditCard className="size-4" aria-hidden />
-            ) : (
-              <Plus className="size-4" aria-hidden />
-            )}
-            <span>
-              {submitting
-                ? "Salvando…"
-                : mode === "edit"
-                  ? "Salvar"
-                  : isCard
-                    ? "Incluir cartão"
-                    : "Incluir conta"}
-            </span>
-          </button>
-        </div>
-      </form>
-    </Modal>
+      <div className="modal-action col-span-full flex flex-col-reverse gap-2 min-[640px]:col-span-2 min-[640px]:flex-row min-[640px]:justify-end">
+        <button type="button" className="btn btn-ghost" onClick={onClose}>
+          <X className="size-4" aria-hidden />
+          <span>Voltar</span>
+        </button>
+        <button
+          type="submit"
+          disabled={!canSubmit || submitting || loadingOpening}
+          className="btn btn-primary"
+        >
+          {submitting || loadingOpening ? (
+            <Loader2 className="size-4 animate-spin" aria-hidden />
+          ) : mode === "edit" ? (
+            <Check className="size-4" aria-hidden />
+          ) : isCard ? (
+            <CreditCard className="size-4" aria-hidden />
+          ) : (
+            <Plus className="size-4" aria-hidden />
+          )}
+          <span>
+            {submitting
+              ? "Salvando…"
+              : mode === "edit"
+                ? "Salvar"
+                : isCard
+                  ? "Incluir cartão"
+                  : "Incluir conta"}
+          </span>
+        </button>
+      </div>
+    </form>
   );
 }
