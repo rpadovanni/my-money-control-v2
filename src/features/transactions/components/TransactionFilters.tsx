@@ -8,7 +8,7 @@
  * O backend (gateway de transações) recebe `TransactionsFilters` e devolve a
  * lista já filtrada/ordenada — esta UI apenas dispara `setTransactionsX`.
  */
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowDownUp,
@@ -100,41 +100,55 @@ export function TransactionFilters({
     return map;
   }, [categories]);
 
-  const activeFilters: ActiveFilter[] = [];
-  if (period.kind !== "all") {
-    activeFilters.push({
-      key: "period",
-      icon: <Calendar className="size-3.5" aria-hidden />,
-      label: formatPeriodBadge(period),
-      onClear: () => void setPeriod({ kind: "all" }),
-    });
-  }
-  if (accountFilter !== "all") {
-    const acc = accountById.get(accountFilter);
-    activeFilters.push({
-      key: "account",
-      icon: <Landmark className="size-3.5" aria-hidden />,
-      label: acc?.name ?? "Conta",
-      onClear: () => void setAccountFilter("all"),
-    });
-  }
-  if (categoryFilter) {
-    const cat = categoryById.get(categoryFilter);
-    activeFilters.push({
-      key: "category",
-      icon: <Tag className="size-3.5" aria-hidden />,
-      label: cat?.label ?? "Categoria",
-      onClear: () => void setCategoryFilter(null),
-    });
-  }
-  if (typeFilter !== "all") {
-    activeFilters.push({
-      key: "type",
-      icon: <ArrowDownUp className="size-3.5" aria-hidden />,
-      label: TYPE_LABEL[typeFilter],
-      onClear: () => void setTypeFilter("all"),
-    });
-  }
+  const activeFilters = useMemo<ActiveFilter[]>(() => {
+    const list: ActiveFilter[] = [];
+    if (period.kind !== "all") {
+      list.push({
+        key: "period",
+        icon: <Calendar className="size-3.5" aria-hidden />,
+        label: formatPeriodBadge(period),
+        onClear: () => void setPeriod({ kind: "all" }),
+      });
+    }
+    if (accountFilter !== "all") {
+      const acc = accountById.get(accountFilter);
+      list.push({
+        key: "account",
+        icon: <Landmark className="size-3.5" aria-hidden />,
+        label: acc?.name ?? "Conta",
+        onClear: () => void setAccountFilter("all"),
+      });
+    }
+    if (categoryFilter) {
+      const cat = categoryById.get(categoryFilter);
+      list.push({
+        key: "category",
+        icon: <Tag className="size-3.5" aria-hidden />,
+        label: cat?.label ?? "Categoria",
+        onClear: () => void setCategoryFilter(null),
+      });
+    }
+    if (typeFilter !== "all") {
+      list.push({
+        key: "type",
+        icon: <ArrowDownUp className="size-3.5" aria-hidden />,
+        label: TYPE_LABEL[typeFilter],
+        onClear: () => void setTypeFilter("all"),
+      });
+    }
+    return list;
+  }, [
+    period,
+    accountFilter,
+    accountById,
+    categoryFilter,
+    categoryById,
+    typeFilter,
+    setPeriod,
+    setAccountFilter,
+    setCategoryFilter,
+    setTypeFilter,
+  ]);
 
   const advancedCount = activeFilters.length;
   const hasAnyApplied = advancedCount > 0 || search.trim().length > 0;
@@ -278,21 +292,36 @@ function SearchBar({
   const [externalValue, setExternalValue] = useState(value);
   const timeoutRef = useRef<number | null>(null);
 
+  function cancelPending() {
+    if (timeoutRef.current !== null) {
+      window.clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  }
+
   if (value !== externalValue) {
     setExternalValue(value);
     setDraft(value);
+    // Se o valor externo mudou (ex.: outro componente fez reset), descartamos
+    // qualquer dispatch pendente para o input não escrever um valor stale.
+    cancelPending();
   }
 
+  useEffect(() => {
+    return () => cancelPending();
+  }, []);
+
   function dispatch(next: string) {
-    if (timeoutRef.current !== null) window.clearTimeout(timeoutRef.current);
+    cancelPending();
     timeoutRef.current = window.setTimeout(() => {
+      timeoutRef.current = null;
       onChange(next);
     }, SEARCH_DEBOUNCE_MS);
   }
 
   function clear() {
     setDraft("");
-    if (timeoutRef.current !== null) window.clearTimeout(timeoutRef.current);
+    cancelPending();
     onChange("");
   }
 

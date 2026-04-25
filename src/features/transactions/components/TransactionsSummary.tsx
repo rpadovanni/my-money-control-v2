@@ -13,21 +13,25 @@ import { useTransactionsStore } from "../store/transactions.store";
 import type { TransactionsPeriod } from "../types/transactions";
 
 /**
- * Resumo do conjunto de transações actualmente filtrado: receitas, despesas,
- * resultado e saldo no período.
+ * Resumo do conjunto de transações actualmente filtrado: receitas, despesas
+ * e saldo do período.
  *
- * Quando não há filtro de período (`period.kind === 'all'`), o resumo
- * fica sempre no **mês civil corrente** — assim os números permanecem
- * estáveis e relevantes mesmo com a lista mostrando tudo. Para isso o
- * componente reaplica os limites do mês corrente ao agregar (a lista do
- * store contém todas as transações neste caso).
+ * Quando não há filtro de período (`period.kind === 'all'`), o resumo fica
+ * sempre no **mês civil corrente** — assim os números permanecem estáveis e
+ * relevantes mesmo com a lista mostrando tudo. Para isso o componente reaplica
+ * os limites do mês corrente ao agregar (a lista do store contém todas as
+ * transações neste caso).
  *
- * Agregação: ignora `kind !== 'normal'` e transferências em receitas/despesas,
- * mas o «Saldo no período» considera saldo inicial e movimentos
- * (ver `summaryPeriodDelta`).
+ * Agregação:
+ * - `income` / `expense`: ignoram `kind !== 'normal'` e transferências.
+ * - `period`: usa `summaryPeriodDelta`; com filtro de conta, transferências
+ *   de/para essa conta entram com sinal correcto e o saldo inicial conta uma
+ *   única vez. Sem filtro de conta (`'all'`), transferências somam zero.
  */
 export function TransactionsSummary() {
-  const period = useTransactionsStore((s) => s.transactions.filters.period);
+  const periodFilter = useTransactionsStore(
+    (s) => s.transactions.filters.period,
+  );
   const accountFilter = useTransactionsStore(
     (s) => s.transactions.filters.accountId,
   );
@@ -35,10 +39,10 @@ export function TransactionsSummary() {
 
   const effectivePeriod = useMemo<EffectivePeriod>(
     () =>
-      period.kind === "all"
+      periodFilter.kind === "all"
         ? { kind: "month", month: currentMonthYYYYMM() }
-        : period,
-    [period],
+        : periodFilter,
+    [periodFilter],
   );
 
   const summaryAccountKey = accountFilter === "all" ? "all" : accountFilter;
@@ -49,10 +53,10 @@ export function TransactionsSummary() {
     let expense = 0;
     let incomeCount = 0;
     let expenseCount = 0;
-    let period = 0;
+    let periodDelta = 0;
     for (const t of rows) {
       if (t.date < startISO || t.date > endISO) continue;
-      period += summaryPeriodDelta(t, summaryAccountKey);
+      periodDelta += summaryPeriodDelta(t, summaryAccountKey);
       if (t.kind !== "normal") continue;
       if (t.type === "transfer") continue;
       if (t.type === "income") {
@@ -68,8 +72,7 @@ export function TransactionsSummary() {
       expense,
       incomeCount,
       expenseCount,
-      flow: income - expense,
-      period,
+      period: periodDelta,
     };
   }, [rows, summaryAccountKey, effectivePeriod]);
 
@@ -112,10 +115,12 @@ export function TransactionsSummary() {
 
         <SummaryMetricCard
           label="Saldo do Período"
-          value={formatCents(summary.flow)}
+          value={formatCents(summary.period)}
           headerAction={<Equal aria-hidden />}
           footer={
-            <MetricFooterText>{formatFlowStatus(summary.flow)}</MetricFooterText>
+            <MetricFooterText>
+              {formatFlowStatus(summary.period)}
+            </MetricFooterText>
           }
         />
       </div>
@@ -142,9 +147,9 @@ function pluralize(count: number, singular: string, plural: string): string {
   return `${count} ${count === 1 ? singular : plural}`;
 }
 
-function formatFlowStatus(flowCents: number): string {
-  if (flowCents > 0) return "Resultado positivo";
-  if (flowCents < 0) return "Resultado negativo";
+function formatFlowStatus(deltaCents: number): string {
+  if (deltaCents > 0) return "Resultado positivo";
+  if (deltaCents < 0) return "Resultado negativo";
   return "Resultado neutro";
 }
 

@@ -13,7 +13,7 @@
  *  - após uma submissão bem-sucedida
  * Quem chama deve usar este sinal para fechar o modal e limpar `editingId`.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, Loader2, Plus, X } from "lucide-react";
 import { todayISODate } from "../../../shared/lib/dates";
 import { errMessage } from "../../../shared/utils/error-message";
@@ -22,6 +22,29 @@ import { Select } from "../../../shared/components/ui/Select";
 import { useTransactionsStore } from "../store/transactions.store";
 import type { TransactionType } from "../types/transactions";
 import type { CategoryType } from "../../../domain/categories/types";
+
+/**
+ * Normaliza o input de valor: aceita só dígitos, no máximo um separador
+ * decimal (ponto ou vírgula → ponto) e um sinal `-` no início (saldo inicial
+ * negativo). Evita estados inválidos como `1.2.3` ou `-1-2` que tornavam o
+ * submit silenciosamente impossível sem feedback ao utilizador.
+ */
+function maskAmountInput(raw: string): string {
+  const normalized = raw.replace(",", ".");
+  let sign = "";
+  let body = normalized;
+  if (body.startsWith("-")) {
+    sign = "-";
+    body = body.slice(1);
+  }
+  body = body.replace(/[^\d.]/g, "");
+  const firstDot = body.indexOf(".");
+  if (firstDot !== -1) {
+    body =
+      body.slice(0, firstDot + 1) + body.slice(firstDot + 1).replace(/\./g, "");
+  }
+  return sign + body;
+}
 
 export type TxFormAccountOption = {
   id: string;
@@ -69,8 +92,6 @@ export function TransactionForm({
   const rows = useTransactionsStore((s) => s.transactions.items);
   const add = useTransactionsStore((s) => s.addTransaction);
   const update = useTransactionsStore((s) => s.updateTransaction);
-
-  const txFormAmountRef = useRef<HTMLInputElement>(null);
 
   const editing = useMemo(
     () => rows.find((t) => t.id === editingId) ?? null,
@@ -342,7 +363,6 @@ export function TransactionForm({
       ) : null}
 
       <Input
-        ref={txFormAmountRef}
         label="Valor (R$)"
         inputMode="decimal"
         autoComplete="off"
@@ -355,12 +375,7 @@ export function TransactionForm({
         title="Use ponto ou vírgula para centavos"
         value={form.amount}
         onChange={(e) =>
-          setForm((f) => ({
-            ...f,
-            amount: e.target.value
-              .replace(",", ".")
-              .replace(/[^\d.-]/g, ""),
-          }))
+          setForm((f) => ({ ...f, amount: maskAmountInput(e.target.value) }))
         }
       />
 
