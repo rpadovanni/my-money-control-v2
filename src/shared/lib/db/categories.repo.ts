@@ -1,18 +1,8 @@
 import { nowTimestampISO } from '../dates'
 import { db } from './dexie'
 import { DEFAULT_CATEGORY_SEEDS } from './category-seed'
+import { slugFromCategoryLabel } from '../../../domain/categories/category-rules'
 import type { CategoryRecord, CategoryType } from '../../../domain/categories/types'
-
-function slugFromLabel(label: string): string {
-  const n = label
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-  return n.length > 0 ? n : 'categoria'
-}
 
 export class CategoriesRepository {
   async list(): Promise<CategoryRecord[]> {
@@ -42,7 +32,7 @@ export class CategoriesRepository {
     if (label.length > 80) throw new Error('Nome muito longo (máx. 80 caracteres).')
     if (type === 'transfer') throw new Error('Transferência é uma categoria do sistema.')
 
-    const base = slugFromLabel(label)
+    const base = slugFromCategoryLabel(label)
     let id = base
     let suffix = 0
     while (await db.categories.get(id)) {
