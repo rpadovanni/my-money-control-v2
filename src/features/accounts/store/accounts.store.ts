@@ -41,15 +41,13 @@ export interface AccountsSliceActions {
 export type AccountsStore = { accounts: AccountsSliceState } & AccountsSliceActions
 
 export interface AccountsCoordinators {
-  reloadTransactions: (opts?: { month?: string }) => Promise<void>
-  getTransactionMonth: () => string
+  reloadTransactions: () => Promise<void>
   getTransactionAccountFilter: () => string | 'all'
   setTransactionAccountFilter: (accountId: string | 'all') => Promise<void>
 }
 
 const noopCoords: AccountsCoordinators = {
   reloadTransactions: async () => {},
-  getTransactionMonth: () => currentMonthYYYYMM(),
   getTransactionAccountFilter: () => 'all',
   setTransactionAccountFilter: async () => {},
 }
@@ -119,7 +117,7 @@ export const useAccountsStore = create<AccountsStore>()((set) => ({
     }
 
     await loadAccounts(set)
-    await accountsCoordinators.reloadTransactions({ month: accountsCoordinators.getTransactionMonth() })
+    await accountsCoordinators.reloadTransactions()
   },
 
   updateAccount: async (id, patch) => {
@@ -151,7 +149,7 @@ export const useAccountsStore = create<AccountsStore>()((set) => ({
     if (filterId !== 'all' && filterId === id) {
       await accountsCoordinators.setTransactionAccountFilter('all')
     } else {
-      await accountsCoordinators.reloadTransactions({ month: accountsCoordinators.getTransactionMonth() })
+      await accountsCoordinators.reloadTransactions()
     }
   },
 
@@ -161,7 +159,7 @@ export const useAccountsStore = create<AccountsStore>()((set) => ({
 
     await accountsRepo.unarchive(id)
     await loadAccounts(set)
-    await accountsCoordinators.reloadTransactions({ month: accountsCoordinators.getTransactionMonth() })
+    await accountsCoordinators.reloadTransactions()
   },
 
   getAccountOpeningForEdit: async (accountId) => {
@@ -179,7 +177,7 @@ export const useAccountsStore = create<AccountsStore>()((set) => ({
     await accountsRepo.update(id, { name: input.name, type: input.type })
     await transactionsRepo.setOpeningBalanceForAccount(id, input.openingBalanceCents, input.openingDate)
     await loadAccounts(set)
-    await accountsCoordinators.reloadTransactions({ month: accountsCoordinators.getTransactionMonth() })
+    await accountsCoordinators.reloadTransactions()
   },
 
   refreshAccountBalances: async () => {

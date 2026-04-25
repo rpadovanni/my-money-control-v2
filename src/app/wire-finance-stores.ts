@@ -31,8 +31,7 @@ export function wireFinanceStores() {
   })
 
   setAccountsCoordinators({
-    reloadTransactions: (opts) => useTransactionsStore.getState().transactionsInit(opts),
-    getTransactionMonth: () => useTransactionsStore.getState().transactions.filters.month,
+    reloadTransactions: () => useTransactionsStore.getState().transactionsInit(),
     getTransactionAccountFilter: () => useTransactionsStore.getState().transactions.filters.accountId,
     setTransactionAccountFilter: (accountId) =>
       useTransactionsStore.getState().setTransactionsAccount(accountId),

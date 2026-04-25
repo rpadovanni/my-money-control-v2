@@ -54,10 +54,12 @@ export function useTransactionListItems(
       const iconKind = iconKindForTransaction(t);
 
       if (t.kind === "opening_balance") {
+        const account = accountName(t.accountId);
         return {
           id: t.id,
           title: "Saldo inicial",
-          category: accountName(t.accountId),
+          category: "Saldo inicial",
+          accountLabel: account,
           dateLabel: when,
           amountCents: t.amountCents,
           iconKind,
@@ -72,6 +74,7 @@ export function useTransactionListItems(
           id: t.id,
           title: desc || `${from} → ${to}`,
           category: "Transferência",
+          accountLabel: `${from} → ${to}`,
           dateLabel: when,
           amountCents: t.amountCents,
           amountTextOverride: `↔ ${formatCents(t.amountCents)}`,
@@ -87,7 +90,8 @@ export function useTransactionListItems(
       return {
         id: t.id,
         title: desc || cat,
-        category: desc ? cat : acc,
+        category: cat,
+        accountLabel: acc,
         dateLabel: when,
         amountCents: income ? t.amountCents : -t.amountCents,
         iconKind,

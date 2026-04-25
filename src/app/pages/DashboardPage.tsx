@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { AccountsCard } from "../../features/accounts/components/AccountsCard";
+import { AccountsSummaryMetrics } from "../../features/accounts/components/AccountsSummaryMetrics";
 import { AccountFormDialog } from "../../features/accounts/components/AccountFormDialog";
 import { useAuthStore } from "../../features/auth/store/auth.store";
 import type {
@@ -34,10 +35,11 @@ import {
   type EditingCategory,
 } from "../../features/categories/components/CategoryFormDialog";
 import { useCategoriesStore } from "../../features/categories/store/categories.store";
-import { TransactionFiltersAndSummary } from "../../features/transactions/components/TransactionFiltersAndSummary";
+import { TransactionFilters } from "../../features/transactions/components/TransactionFilters";
 import { TransactionFormDialog } from "../../features/transactions/components/TransactionFormDialog";
 import { TransactionList } from "../../features/transactions/components/TransactionList";
 import { TransactionsListSection } from "../../features/transactions/components/TransactionsListSection";
+import { TransactionsSummary } from "../../features/transactions/components/TransactionsSummary";
 import { useTransactionListItems } from "../../features/transactions/hooks/useTransactionListItems";
 import { useTransactionsStore } from "../../features/transactions/store/transactions.store";
 import { isSupabaseConfigured } from "../../shared/lib/supabase/client";
@@ -87,7 +89,8 @@ function HomeEmptyState() {
         Nenhuma transação no mês corrente
       </p>
       <p className="text-sm text-base-content/70">
-        Use “Transações” no menu para registar lançamentos ou alterar o mês.
+        Use “Nova transação” para registrar lançamentos e acompanhar seus
+        indicadores.
       </p>
     </>
   );
@@ -101,8 +104,8 @@ function TransactionsEmptyState() {
         Nenhuma transação neste período
       </p>
       <p className="text-sm text-base-content/70">
-        Ajuste mês, conta ou tipo nos filtros — ou clique em «Nova transação» no
-        topo da página.
+        Ajuste os filtros aplicados ou clique em «Nova transação» no topo da
+        página.
       </p>
     </>
   );
@@ -212,7 +215,7 @@ export function DashboardPage() {
     headerActions = (
       <button
         type="button"
-        className="btn btn-primary"
+        className="btn btn-primary btn-sm"
         onClick={() => {
           setEditingId(null);
           setCreatingTransaction(true);
@@ -227,7 +230,7 @@ export function DashboardPage() {
       <>
         <button
           type="button"
-          className="btn btn-primary"
+          className="btn btn-primary btn-sm"
           onClick={() =>
             setAccountDialog({ mode: "create", defaultType: "bank" })
           }
@@ -237,7 +240,7 @@ export function DashboardPage() {
         </button>
         <button
           type="button"
-          className="btn btn-outline"
+          className="btn btn-outline btn-sm"
           onClick={() =>
             setAccountDialog({ mode: "create", defaultType: "credit_card" })
           }
@@ -251,7 +254,7 @@ export function DashboardPage() {
     headerActions = (
       <button
         type="button"
-        className="btn btn-primary"
+        className="btn btn-primary btn-sm"
         disabled={Boolean(categoriesInitError)}
         onClick={() => setCategoryDialog({ mode: "create" })}
       >
@@ -320,10 +323,11 @@ export function DashboardPage() {
       {/* Transações: filtros + resumo + lista (formulário em modal) */}
       {view === "transactions" ? (
         <div className="flex flex-col gap-4">
-          <TransactionFiltersAndSummary
+          <TransactionFilters
             accounts={filterAccounts}
             categories={filterCategories}
           />
+          <TransactionsSummary />
           <TransactionsListSection
             accounts={txAccountsPicker}
             archivedAccounts={txArchivedPicker}
@@ -340,14 +344,17 @@ export function DashboardPage() {
 
       {/* Contas: CRUD + transferências + “Pagar fatura” (formulário em modal) */}
       {view === "accounts" ? (
-        <AccountsCard
-          onAddTransfer={(input) => addTransaction(input)}
-          pushToast={pushToast}
-          setNotice={setNotice}
-          onEditAccount={(account) =>
-            setAccountDialog({ mode: "edit", account })
-          }
-        />
+        <div className="flex flex-col gap-4">
+          <AccountsSummaryMetrics />
+          <AccountsCard
+            onAddTransfer={(input) => addTransaction(input)}
+            pushToast={pushToast}
+            setNotice={setNotice}
+            onEditAccount={(account) =>
+              setAccountDialog({ mode: "edit", account })
+            }
+          />
+        </div>
       ) : null}
 
       {/* Modal partilhado: nova/editar transação */}

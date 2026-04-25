@@ -31,7 +31,7 @@ Repos e gateways por agregado em `features/<agregado>/services/` reduzem o que `
 `DashboardPage` is intentionally a **composition layer**: layout, route-driven `view` flags, and wiring hooks to feature components. Each route renders only what makes sense for it:
 
 - `/` (Início) — KPIs (placeholder) + lista “Transações Recentes” somente leitura, com link «Ver todas».
-- `/transactions` — `TransactionFiltersAndSummary` + `TransactionFormCard` + `TransactionsListSection` (lista com editar/excluir, diálogo de confirmação).
+- `/transactions` — `TransactionFilters` + `TransactionsSummary` + `TransactionFormCard` + `TransactionsListSection` (lista com editar/excluir, diálogo de confirmação).
 - `/accounts` — `AccountsCard` (CRUD de contas, transferências, “Pagar fatura”).
 - `/categories` — `CategoriesSection`.
 

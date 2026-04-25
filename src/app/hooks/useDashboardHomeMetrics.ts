@@ -1,14 +1,18 @@
 /**
- * View-model dos KPIs da Home: receitas/despesas do mês actualmente filtrado
- * em `transactions.store`, saldo agregado das contas activas e total das
- * facturas em aberto dos cartões.
+ * View-model dos KPIs da Home: receitas/despesas do **mês civil actual**
+ * (independente do filtro da página de Transações), saldo agregado das contas
+ * activas e total das facturas em aberto dos cartões.
  *
  * Decisões:
- * - **Mês:** segue o filtro do `transactions.store` (mesmo critério que a lista
- *   «Transações Recentes»), para não divergir entre cartões e tabela.
+ * - **Mês:** sempre o mês civil corrente. A lista da Home pode mostrar todas as
+ *   transações (preview), mas os KPIs precisam de um período fixo para serem
+ *   estáveis ao navegar entre Home/Transações.
  * - **Receitas / Despesas:** ignora `kind !== 'normal'` (saldo inicial) e
- *   `type === 'transfer'`, espelhando `TransactionFiltersAndSummary`.
- * - **Saldo:** soma dos saldos das contas **não arquivadas** — `balancesByAccountId`
+ *   `type === 'transfer'`, espelhando `TransactionsSummary`.
+ * - **Saldo:** soma dos saldos das contas **não arquivadas** e **não cartão
+ *   de crédito** — despesas de cartão não devem entrar no saldo atual; o
+ *   débito real só entra quando a fatura é paga (transferência → cartão),
+ *   o que já é captado no saldo da conta de origem. `balancesByAccountId`
  *   inclui apenas chaves para contas que tiveram movimentos, mas pode reter ids
  *   de contas arquivadas; intersectamos com `accounts.items`.
  * - **Fatura:** soma de `creditCardPayableByAccountId` para contas activas do
@@ -18,7 +22,11 @@
 import { useMemo } from "react";
 import { useAccountsStore } from "../../features/accounts/store/accounts.store";
 import { useTransactionsStore } from "../../features/transactions/store/transactions.store";
-import { formatMonthYearForDisplay } from "../../shared/lib/dates";
+import {
+  currentMonthYYYYMM,
+  formatMonthYearForDisplay,
+  monthDayBounds,
+} from "../../shared/lib/dates";
 
 export type DashboardHomeMetrics = {
   monthLabel: string;
@@ -30,7 +38,7 @@ export type DashboardHomeMetrics = {
 };
 
 export function useDashboardHomeMetrics(): DashboardHomeMetrics {
-  const month = useTransactionsStore((s) => s.transactions.filters.month);
+  const month = currentMonthYYYYMM();
   const txItems = useTransactionsStore((s) => s.transactions.items);
   const txReady = useTransactionsStore((s) => s.transactions.ready);
 
@@ -49,9 +57,12 @@ export function useDashboardHomeMetrics(): DashboardHomeMetrics {
     let expenseCents = 0;
     let expenseCount = 0;
 
+    const { startISO, endISO } = monthDayBounds(month);
+
     for (const t of txItems) {
       if (t.kind !== "normal") continue;
       if (t.type === "transfer") continue;
+      if (t.date < startISO || t.date > endISO) continue;
       if (t.type === "income") {
         incomeCents += t.amountCents;
         incomeCount += 1;
@@ -62,14 +73,17 @@ export function useDashboardHomeMetrics(): DashboardHomeMetrics {
     }
 
     return { incomeCents, incomeCount, expenseCents, expenseCount };
-  }, [txItems]);
+  }, [txItems, month]);
 
   const balance = useMemo(() => {
     let cents = 0;
+    let accountsCount = 0;
     for (const acc of accounts) {
+      if (acc.type === "credit_card") continue;
       cents += balancesByAccountId[acc.id] ?? 0;
+      accountsCount += 1;
     }
-    return { cents, accountsCount: accounts.length };
+    return { cents, accountsCount };
   }, [accounts, balancesByAccountId]);
 
   const invoice = useMemo(() => {

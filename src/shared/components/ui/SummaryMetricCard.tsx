@@ -9,7 +9,7 @@ export type SummaryMetricCardProps = Omit<
   ComponentPropsWithoutRef<"article">,
   "children"
 > & {
-  icon: ReactNode;
+  icon?: ReactNode;
   label: ReactNode;
   value: ReactNode;
   headerAction?: ReactNode;
@@ -35,9 +35,13 @@ export function SummaryMetricCard({
     >
       <div className="card-body flex flex-col gap-3">
         <div className="flex items-center justify-between gap-2">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-content [&_svg]:size-4">
-            {icon}
-          </div>
+          {icon ? (
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-content [&_svg]:size-4">
+              {icon}
+            </div>
+          ) : (
+            <div className="min-w-0 text-sm text-base-content/60">{label}</div>
+          )}
           {headerAction ? (
             <div className="flex shrink-0 items-center text-base-content/50 [&_svg]:size-4">
               {headerAction}
@@ -46,7 +50,9 @@ export function SummaryMetricCard({
         </div>
 
         <div className="flex min-w-0 flex-col gap-1">
-          <div className="text-sm text-base-content/60">{label}</div>
+          {icon ? (
+            <div className="text-sm text-base-content/60">{label}</div>
+          ) : null}
           <div className="text-2xl font-bold text-base-content">{value}</div>
         </div>
 

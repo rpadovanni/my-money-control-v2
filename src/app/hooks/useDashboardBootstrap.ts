@@ -3,7 +3,6 @@ import { useAccountsStore } from '../../features/accounts/store/accounts.store'
 import { useAuthStore } from '../../features/auth/store/auth.store'
 import { useCategoriesStore } from '../../features/categories/store/categories.store'
 import { useTransactionsStore } from '../../features/transactions/store/transactions.store'
-import { currentMonthYYYYMM } from '../../shared/lib/dates'
 
 /** Sobrevive a remount (ex.: React Strict Mode em dev): evita segundo init com a mesma chave. */
 let lastFinanceBootstrapKey: string | null = null
@@ -25,7 +24,7 @@ export function useDashboardBootstrap() {
     if (lastFinanceBootstrapKey === key) return
     lastFinanceBootstrapKey = key
     void initAcc()
-    void initTx({ month: currentMonthYYYYMM() })
+    void initTx()
     void initCat()
   }, [authStatus, authSession?.user?.id, initAcc, initTx, initCat])
 }
