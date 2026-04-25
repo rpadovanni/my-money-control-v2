@@ -8,7 +8,7 @@
  * `online`, `useDashboardFeedback` para a migração) chegam por prop a partir do
  * `LoggedInLayout`, para que esses hooks rodem **uma só vez** no shell.
  */
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
   ChevronDown,
   CloudUpload,
@@ -173,11 +173,24 @@ export function DashboardNavbar({
 
   // Painel mobile: abre/fecha com o hamburger; fecha automaticamente quando
   // a rota muda (clique num link, navegação programática, back/forward).
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { pathname } = useLocation();
-  useEffect(() => {
-    setMobileNavOpen(false);
-  }, [pathname]);
+  const [mobileNav, setMobileNav] = useState({
+    open: false,
+    pathname,
+  });
+
+  if (mobileNav.pathname !== pathname) {
+    setMobileNav({ open: false, pathname });
+  }
+
+  const mobileNavOpen = mobileNav.open && mobileNav.pathname === pathname;
+
+  function setMobileNavOpen(open: boolean | ((current: boolean) => boolean)) {
+    setMobileNav((current) => ({
+      pathname,
+      open: typeof open === "function" ? open(current.open) : open,
+    }));
+  }
 
   function closeAccountMenu() {
     accountMenuRef.current?.removeAttribute("open");
