@@ -11,7 +11,6 @@ import { errMessage } from '../../shared/utils/error-message'
  */
 export function useDashboardFeedback() {
   const authSession = useAuthStore((s) => s.auth.session)
-  const month = useTransactionsStore((s) => s.transactions.filters.month)
   const initAcc = useAccountsStore((s) => s.accountsInit)
   const initTx = useTransactionsStore((s) => s.transactionsInit)
   const initCat = useCategoriesStore((s) => s.categoriesInit)
@@ -59,14 +58,14 @@ export function useDashboardFeedback() {
         6500,
       )
       await initAcc()
-      await initTx({ month })
+      await initTx()
       await initCat()
     } catch (err) {
       setNotice({ variant: 'error', message: errMessage(err) })
     } finally {
       setMigratingLocal(false)
     }
-  }, [authSession?.user?.id, migratingLocal, month, initAcc, initTx, initCat, pushToast])
+  }, [authSession?.user?.id, migratingLocal, initAcc, initTx, initCat, pushToast])
 
   return {
     notice,

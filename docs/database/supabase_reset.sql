@@ -1,6 +1,24 @@
--- My Money Control v2 — schema Postgres para Supabase (MVP nuvem)
--- Rode no SQL Editor do projeto Supabase após criar o projeto.
--- Requer extensão padrão; `auth.users` já existe no Supabase.
+-- My Money Control v2 — RESET TOTAL (DROP + RECREATE)
+--
+-- Objetivo: deixar o Supabase 100% limpo (sem dados e sem tabelas),
+-- e recriar o schema do MVP do zero.
+--
+-- Como usar:
+-- - Abra o SQL Editor do projeto Supabase
+-- - Cole este arquivo e execute
+--
+-- Aviso: isto apaga tudo em `public.accounts`, `public.transactions`, `public.categories`.
+-- (RLS policies e índices associados também são removidos via CASCADE.)
+
+begin;
+
+drop table if exists public.transactions cascade;
+drop table if exists public.accounts cascade;
+drop table if exists public.categories cascade;
+
+commit;
+
+-- Recria o schema (copiado de `docs/database/supabase_schema.sql`).
 
 create table if not exists public.accounts (
   id uuid primary key,
@@ -93,3 +111,4 @@ create policy "categories_select_own" on public.categories for select using (aut
 create policy "categories_insert_own" on public.categories for insert with check (auth.uid() = user_id);
 create policy "categories_update_own" on public.categories for update using (auth.uid() = user_id);
 create policy "categories_delete_own" on public.categories for delete using (auth.uid() = user_id);
+

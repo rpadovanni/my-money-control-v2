@@ -3,7 +3,7 @@ import { useAccountsStore } from '../../features/accounts/store/accounts.store'
 import { useAuthStore } from '../../features/auth/store/auth.store'
 import { useCategoriesStore } from '../../features/categories/store/categories.store'
 import { useTransactionsStore } from '../../features/transactions/store/transactions.store'
-import { currentMonthYYYYMM } from '../../shared/lib/dates'
+import { resetLocalDexieDb } from '../../shared/lib/db/dexie'
 
 /** Sobrevive a remount (ex.: React Strict Mode em dev): evita segundo init com a mesma chave. */
 let lastFinanceBootstrapKey: string | null = null
@@ -24,8 +24,23 @@ export function useDashboardBootstrap() {
     const key = authSession?.user?.id ? `cloud:${authSession.user.id}` : 'local'
     if (lastFinanceBootstrapKey === key) return
     lastFinanceBootstrapKey = key
+
+    // Reset total local (Dexie) controlado por env var.
+    // Uso: `VITE_RESET_LOCAL_DB=1` e recarregar a página.
+    if (key === 'local' && import.meta.env.VITE_RESET_LOCAL_DB === '1') {
+      const guardKey = '__mmc_reset_local_db_done__'
+      if (!localStorage.getItem(guardKey)) {
+        localStorage.setItem(guardKey, '1')
+        void resetLocalDexieDb().finally(() => {
+          // Garantimos que a app re-inicialize sem dados/estado.
+          window.location.reload()
+        })
+        return
+      }
+    }
+
     void initAcc()
-    void initTx({ month: currentMonthYYYYMM() })
+    void initTx()
     void initCat()
   }, [authStatus, authSession?.user?.id, initAcc, initTx, initCat])
 }

@@ -4,6 +4,8 @@ export type {
   TransactionCategoryId,
   TransactionKind,
   TransactionsFilters,
+  TransactionsPeriod,
+  TransactionsSort,
   TransactionType,
   UpdateTransactionInput,
 } from '../../../domain/transactions/types'

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { categoriesRepo } from '../../../shared/lib/data/categories.gateway'
 import { transactionsRepo } from '../../../shared/lib/data/transactions.gateway'
-import type { Category } from '../types/category'
+import type { Category, CategoryType } from '../types/category'
 
 export interface CategoriesSliceState {
   ready: boolean
@@ -12,15 +12,15 @@ export interface CategoriesSliceState {
 
 export interface CategoriesSliceActions {
   categoriesInit: () => Promise<void>
-  addCategory: (label: string) => Promise<void>
-  updateCategory: (id: string, label: string) => Promise<void>
+  addCategory: (label: string, type: CategoryType) => Promise<void>
+  updateCategory: (id: string, label: string, type: CategoryType) => Promise<void>
   deleteCategory: (id: string) => Promise<void>
 }
 
 export type CategoriesStore = { categories: CategoriesSliceState } & CategoriesSliceActions
 
-function toItem(r: { id: string; label: string; system: boolean }): Category {
-  return { id: r.id, label: r.label, system: r.system }
+function toItem(r: { id: string; label: string; type: CategoryType; system: boolean }): Category {
+  return { id: r.id, label: r.label, type: r.type, system: r.system }
 }
 
 function mapCategoriesInitError(e: unknown): string {
@@ -68,8 +68,8 @@ export const useCategoriesStore = create<CategoriesStore>()((set) => ({
     }
   },
 
-  addCategory: async (label) => {
-    const row = await categoriesRepo.create(label)
+  addCategory: async (label, type) => {
+    const row = await categoriesRepo.create(label, type)
     set((s) => ({
       categories: {
         ...s.categories,
@@ -79,8 +79,8 @@ export const useCategoriesStore = create<CategoriesStore>()((set) => ({
     }))
   },
 
-  updateCategory: async (id, label) => {
-    const row = await categoriesRepo.update(id, label)
+  updateCategory: async (id, label, type) => {
+    const row = await categoriesRepo.update(id, label, type)
     set((s) => ({
       categories: {
         ...s.categories,

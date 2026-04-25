@@ -1,4 +1,5 @@
 import { forwardRef } from 'react'
+import { cn } from '../../utils/cn'
 
 export type SelectProps = Omit<
   React.SelectHTMLAttributes<HTMLSelectElement>,
@@ -20,37 +21,35 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
   const showHint = Boolean(hint) && !showError
 
   return (
-    <label className={`form-control w-full ${rootClassName ?? ''}`.trim()}>
+    <div className={cn('w-full', rootClassName)}>
       {label ? (
-        <div className="label">
-          <span className="label-text">{label}</span>
-        </div>
+        <label
+          htmlFor={id}
+          className="mb-1 block text-sm font-medium text-base-content/80"
+        >
+          {label}
+        </label>
       ) : null}
 
       <select
         ref={ref}
         id={id}
-        className={[
-          'select select-bordered w-full',
-          showError ? 'select-error' : '',
-          className ?? '',
-          selectClassName ?? '',
-        ]
-          .filter(Boolean)
-          .join(' ')}
+        className={cn(
+          'select w-full',
+          showError && 'select-error',
+          className,
+          selectClassName,
+        )}
         {...props}
       >
         {children}
       </select>
 
       {showError || showHint ? (
-        <div className="label">
-          <span className={`label-text-alt ${showError ? 'text-error' : 'opacity-70'}`.trim()}>
-            {showError ? error : hint}
-          </span>
-        </div>
+        <p className={cn('mt-1 text-sm', showError ? 'text-error' : 'text-base-content/60')}>
+          {showError ? error : hint}
+        </p>
       ) : null}
-    </label>
+    </div>
   )
 })
-

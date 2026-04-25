@@ -32,11 +32,25 @@ export interface Transaction {
   updatedAt: string
 }
 
+export type TransactionsSort = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc'
+
+/**
+ * Filtro de período: sem filtro (default), um mês civil ou um intervalo
+ * livre de datas no calendário local.
+ */
+export type TransactionsPeriod =
+  | { kind: 'all' }
+  | { kind: 'month'; month: string } // YYYY-MM
+  | { kind: 'range'; start: string; end: string } // YYYY-MM-DD inclusivos
+
 export interface TransactionsFilters {
-  month: string // YYYY-MM
+  period: TransactionsPeriod
   type: 'all' | TransactionType
   category: string | null
   accountId: string | 'all'
+  /** Texto livre — casa apenas no título (descrição). Vazio = sem busca. */
+  search: string
+  sort: TransactionsSort
 }
 
 export interface NewTransactionInput {

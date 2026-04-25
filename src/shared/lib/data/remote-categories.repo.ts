@@ -1,12 +1,14 @@
 import { nowTimestampISO } from '../dates'
 import { DEFAULT_CATEGORY_SEEDS } from '../db/category-seed'
 import { requireRemote } from './remote-context'
-import type { CategoryRecord } from '../../../domain/categories/types'
+import { slugFromCategoryLabel } from '../../../domain/categories/category-rules'
+import type { CategoryRecord, CategoryType } from '../../../domain/categories/types'
 
 type CategoryRow = {
   user_id: string
   id: string
   label: string
+  type: CategoryType
   system: boolean
   created_at: string
   updated_at: string
@@ -16,6 +18,7 @@ function rowToRecord(r: CategoryRow): CategoryRecord {
   return {
     id: r.id,
     label: r.label,
+    type: r.type,
     system: r.system,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -27,21 +30,11 @@ function recordToRow(userId: string, c: CategoryRecord): CategoryRow {
     user_id: userId,
     id: c.id,
     label: c.label,
+    type: c.type,
     system: c.system,
     created_at: c.createdAt,
     updated_at: c.updatedAt,
   }
-}
-
-function slugFromLabel(label: string): string {
-  const n = label
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-  return n.length > 0 ? n : 'categoria'
 }
 
 export const remoteCategoriesRepo = {
@@ -70,6 +63,7 @@ export const remoteCategoriesRepo = {
       user_id: userId,
       id: s.id,
       label: s.label,
+      type: s.type,
       system: s.system,
       created_at: ts,
       updated_at: ts,
@@ -78,16 +72,17 @@ export const remoteCategoriesRepo = {
     if (error) throw new Error(error.message)
   },
 
-  async create(labelRaw: string): Promise<CategoryRecord> {
+  async create(labelRaw: string, type: CategoryType): Promise<CategoryRecord> {
     const { client, userId } = requireRemote()
     const label = labelRaw.trim()
     if (!label) throw new Error('Nome da categoria é obrigatório.')
     if (label.length > 80) throw new Error('Nome muito longo (máx. 80 caracteres).')
+    if (type === 'transfer') throw new Error('Transferência é uma categoria do sistema.')
 
     const existing = await remoteCategoriesRepo.list()
     const ids = new Set(existing.map((c) => c.id))
 
-    const base = slugFromLabel(label)
+    const base = slugFromCategoryLabel(label)
     let id = base
     let suffix = 0
     while (ids.has(id)) {
@@ -99,6 +94,7 @@ export const remoteCategoriesRepo = {
     const row: CategoryRecord = {
       id,
       label,
+      type,
       system: false,
       createdAt: ts,
       updatedAt: ts,
@@ -108,7 +104,7 @@ export const remoteCategoriesRepo = {
     return row
   },
 
-  async update(id: string, labelRaw: string): Promise<CategoryRecord> {
+  async update(id: string, labelRaw: string, type: CategoryType): Promise<CategoryRecord> {
     const { client, userId } = requireRemote()
     const { data: cur, error: gErr } = await client
       .from('categories')
@@ -124,16 +120,17 @@ export const remoteCategoriesRepo = {
     const label = labelRaw.trim()
     if (!label) throw new Error('Nome da categoria é obrigatório.')
     if (label.length > 80) throw new Error('Nome muito longo (máx. 80 caracteres).')
+    if (type === 'transfer') throw new Error('Transferência é uma categoria do sistema.')
 
     const ts = nowTimestampISO()
     const { error } = await client
       .from('categories')
-      .update({ label, updated_at: ts })
+      .update({ label, type, updated_at: ts })
       .eq('user_id', userId)
       .eq('id', id)
     if (error) throw new Error(error.message)
 
-    return { id, label, system: false, createdAt: row.created_at, updatedAt: ts }
+    return { id, label, type, system: false, createdAt: row.created_at, updatedAt: ts }
   },
 
   async remove(id: string): Promise<void> {

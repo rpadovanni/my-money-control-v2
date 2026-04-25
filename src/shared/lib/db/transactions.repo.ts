@@ -1,6 +1,8 @@
 /** Contratos e agregação de saldo: `src/domain/transactions`. */
+import type { Collection } from 'dexie'
 import { monthDayBounds, nowTimestampISO } from '../dates'
 import { applyTransactionToBalanceMap } from '../../../domain/transactions/transaction-net'
+import { buildTransactionsComparator } from '../../../domain/transactions/transactions-list'
 import { db } from './dexie'
 import type { Account } from '../../../domain/accounts/types'
 import type {
@@ -12,9 +14,18 @@ import type {
 
 export class TransactionsRepository {
   async list(filters: TransactionsFilters): Promise<Transaction[]> {
-    const { startISO, endISO } = monthDayBounds(filters.month)
+    let coll: Collection<Transaction, string>
+    if (filters.period.kind === 'month') {
+      const { startISO, endISO } = monthDayBounds(filters.period.month)
+      coll = db.transactions.where('date').between(startISO, endISO, true, true)
+    } else if (filters.period.kind === 'range') {
+      coll = db.transactions
+        .where('date')
+        .between(filters.period.start, filters.period.end, true, true)
+    } else {
+      coll = db.transactions.toCollection()
+    }
 
-    let coll = db.transactions.where('date').between(startISO, endISO, true, true)
     if (filters.type !== 'all') {
       if (filters.type === 'transfer') {
         coll = coll.and((t) => t.type === 'transfer')
@@ -34,9 +45,13 @@ export class TransactionsRepository {
         return t.accountId === id
       })
     }
+    const search = filters.search.trim().toLowerCase()
+    if (search.length > 0) {
+      coll = coll.and((t) => (t.description ?? '').toLowerCase().includes(search))
+    }
 
     const items = await coll.toArray()
-    items.sort((a, b) => (a.date === b.date ? b.createdAt.localeCompare(a.createdAt) : b.date.localeCompare(a.date)))
+    items.sort(buildTransactionsComparator(filters.sort))
     return items
   }
 

@@ -1,18 +1,8 @@
 import { nowTimestampISO } from '../dates'
 import { db } from './dexie'
 import { DEFAULT_CATEGORY_SEEDS } from './category-seed'
-import type { CategoryRecord } from '../../../domain/categories/types'
-
-function slugFromLabel(label: string): string {
-  const n = label
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-  return n.length > 0 ? n : 'categoria'
-}
+import { slugFromCategoryLabel } from '../../../domain/categories/category-rules'
+import type { CategoryRecord, CategoryType } from '../../../domain/categories/types'
 
 export class CategoriesRepository {
   async list(): Promise<CategoryRecord[]> {
@@ -28,6 +18,7 @@ export class CategoriesRepository {
       DEFAULT_CATEGORY_SEEDS.map((s) => ({
         id: s.id,
         label: s.label,
+        type: s.type,
         system: s.system,
         createdAt: ts,
         updatedAt: ts,
@@ -35,12 +26,13 @@ export class CategoriesRepository {
     )
   }
 
-  async create(labelRaw: string): Promise<CategoryRecord> {
+  async create(labelRaw: string, type: CategoryType): Promise<CategoryRecord> {
     const label = labelRaw.trim()
     if (!label) throw new Error('Nome da categoria é obrigatório.')
     if (label.length > 80) throw new Error('Nome muito longo (máx. 80 caracteres).')
+    if (type === 'transfer') throw new Error('Transferência é uma categoria do sistema.')
 
-    const base = slugFromLabel(label)
+    const base = slugFromCategoryLabel(label)
     let id = base
     let suffix = 0
     while (await db.categories.get(id)) {
@@ -52,6 +44,7 @@ export class CategoriesRepository {
     const row: CategoryRecord = {
       id,
       label,
+      type,
       system: false,
       createdAt: ts,
       updatedAt: ts,
@@ -60,7 +53,7 @@ export class CategoriesRepository {
     return row
   }
 
-  async update(id: string, labelRaw: string): Promise<CategoryRecord> {
+  async update(id: string, labelRaw: string, type: CategoryType): Promise<CategoryRecord> {
     const existing = await db.categories.get(id)
     if (!existing) throw new Error('Categoria não encontrada.')
     if (existing.system) throw new Error('Esta categoria não pode ser editada.')
@@ -68,10 +61,12 @@ export class CategoriesRepository {
     const label = labelRaw.trim()
     if (!label) throw new Error('Nome da categoria é obrigatório.')
     if (label.length > 80) throw new Error('Nome muito longo (máx. 80 caracteres).')
+    if (type === 'transfer') throw new Error('Transferência é uma categoria do sistema.')
 
     const updated: CategoryRecord = {
       ...existing,
       label,
+      type,
       updatedAt: nowTimestampISO(),
     }
     await db.categories.put(updated)

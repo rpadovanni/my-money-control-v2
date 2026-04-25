@@ -1,4 +1,5 @@
 import { forwardRef } from 'react'
+import { cn } from '../../utils/cn'
 
 export type InputProps = Omit<
   React.InputHTMLAttributes<HTMLInputElement>,
@@ -19,35 +20,33 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   const showHint = Boolean(hint) && !showError
 
   return (
-    <label className={`form-control w-full ${rootClassName ?? ''}`.trim()}>
+    <div className={cn('w-full', rootClassName)}>
       {label ? (
-        <div className="label">
-          <span className="label-text">{label}</span>
-        </div>
+        <label
+          htmlFor={id}
+          className="mb-1 block text-sm font-medium text-base-content/80"
+        >
+          {label}
+        </label>
       ) : null}
 
       <input
         ref={ref}
         id={id}
-        className={[
-          'input input-bordered w-full',
-          showError ? 'input-error' : '',
-          className ?? '',
-          inputClassName ?? '',
-        ]
-          .filter(Boolean)
-          .join(' ')}
+        className={cn(
+          'input w-full',
+          showError && 'input-error',
+          className,
+          inputClassName,
+        )}
         {...props}
       />
 
       {showError || showHint ? (
-        <div className="label">
-          <span className={`label-text-alt ${showError ? 'text-error' : 'opacity-70'}`.trim()}>
-            {showError ? error : hint}
-          </span>
-        </div>
+        <p className={cn('mt-1 text-sm', showError ? 'text-error' : 'text-base-content/60')}>
+          {showError ? error : hint}
+        </p>
       ) : null}
-    </label>
+    </div>
   )
 })
-

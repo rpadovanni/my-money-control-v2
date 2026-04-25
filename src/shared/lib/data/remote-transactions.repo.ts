@@ -1,5 +1,6 @@
 /** Contratos e regra pura de saldo: `src/domain/transactions` (partilhado por repos e UI). */
 import { applyTransactionToBalanceMap } from '../../../domain/transactions/transaction-net'
+import { buildTransactionsComparator } from '../../../domain/transactions/transactions-list'
 import { monthDayBounds, nowTimestampISO } from '../dates'
 import { requireRemote } from './remote-context'
 import type { AccountRow, TransactionRow } from './supabase-mappers'
@@ -11,17 +12,23 @@ import type {
   UpdateTransactionInput,
 } from '../../../domain/transactions/types'
 
+/** Escapa wildcards `%` / `_` em padrões `ilike` para tratar a busca como literal. */
+function escapePostgrestLike(value: string): string {
+  return value.replace(/([%_\\])/g, '\\$1')
+}
+
 export const remoteTransactionsRepo = {
   async list(filters: TransactionsFilters): Promise<Transaction[]> {
     const { client, userId } = requireRemote()
-    const { startISO, endISO } = monthDayBounds(filters.month)
 
-    let q = client
-      .from('transactions')
-      .select('*')
-      .eq('user_id', userId)
-      .gte('date', startISO)
-      .lte('date', endISO)
+    let q = client.from('transactions').select('*').eq('user_id', userId)
+
+    if (filters.period.kind === 'month') {
+      const { startISO, endISO } = monthDayBounds(filters.period.month)
+      q = q.gte('date', startISO).lte('date', endISO)
+    } else if (filters.period.kind === 'range') {
+      q = q.gte('date', filters.period.start).lte('date', filters.period.end)
+    }
 
     if (filters.type !== 'all') {
       if (filters.type === 'transfer') {
@@ -33,6 +40,12 @@ export const remoteTransactionsRepo = {
 
     if (filters.category) {
       q = q.eq('category', filters.category)
+    }
+
+    const search = filters.search.trim()
+    if (search.length > 0) {
+      // Apenas título (descrição) — coluna `description` no schema.
+      q = q.ilike('description', `%${escapePostgrestLike(search)}%`)
     }
 
     let needAccountFilter = false
@@ -57,9 +70,7 @@ export const remoteTransactionsRepo = {
       })
     }
 
-    items.sort((a, b) =>
-      a.date === b.date ? b.createdAt.localeCompare(a.createdAt) : b.date.localeCompare(a.date),
-    )
+    items.sort(buildTransactionsComparator(filters.sort))
     return items
   },
 
