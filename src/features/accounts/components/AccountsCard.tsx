@@ -11,10 +11,13 @@ import {
   Archive,
   Check,
   CreditCard,
+  Eye,
+  Landmark,
   Loader2,
   Pencil,
   Star,
   Undo2,
+  Wallet,
   WalletCards,
   X,
 } from "lucide-react";
@@ -25,6 +28,7 @@ import {
   todayISODate,
 } from "../../../shared/lib/dates";
 import { formatCents } from "../../../shared/utils/money-format";
+import { cn } from "../../../shared/utils/cn";
 import { errMessage } from "../../../shared/utils/error-message";
 import { Input } from "../../../shared/components/ui/Input";
 import { Select } from "../../../shared/components/ui/Select";
@@ -36,6 +40,13 @@ const ACCOUNT_TYPE_LABEL: Record<AccountType, string> = {
   wallet: "Carteira",
   credit_card: "Cartão de crédito",
   other: "Outro",
+};
+
+const ACCOUNT_ICON: Record<AccountType, typeof Landmark> = {
+  bank: Landmark,
+  wallet: Wallet,
+  credit_card: CreditCard,
+  other: WalletCards,
 };
 
 export type AddTransferPayload = {
@@ -84,6 +95,7 @@ export function AccountsCard({
   const [payFromId, setPayFromId] = useState("");
   const [payAmount, setPayAmount] = useState("");
   const [payDate, setPayDate] = useState(() => todayISODate());
+  const [detailsAccountId, setDetailsAccountId] = useState<string | null>(null);
 
   const [archiveConfirm, setArchiveConfirm] = useState<null | {
     accountId: string;
@@ -205,11 +217,22 @@ export function AccountsCard({
   }
 
   const faturaMesLabel = formatMonthYearForDisplay(currentMonthYYYYMM());
+  const accountGroups = [
+    {
+      id: "bank-accounts",
+      title: "Contas Bancárias",
+      items: accounts.filter((a) => a.type !== "credit_card"),
+    },
+    {
+      id: "credit-cards",
+      title: "Cartões de Crédito",
+      items: accounts.filter((a) => a.type === "credit_card"),
+    },
+  ];
 
   return (
     <>
-      <div className="card border border-base-300 bg-base-100">
-        <div className="card-body">
+      <section className="flex flex-col gap-4" aria-label="Contas">
           <p className="text-sm text-base-content/70">
             Saldo por conta = histórico completo. Em cartões, &quot;A
             pagar&quot; usa sempre o <strong>mês civil atual</strong>{" "}
@@ -226,177 +249,270 @@ export function AccountsCard({
               </p>
             </div>
           ) : (
-            <ul className="mt-4 space-y-2">
-              {accounts.map((a: Account) => (
-                <li
-                  key={a.id}
-                  className="rounded-box border border-base-300 bg-base-100 p-3"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex min-w-0 flex-wrap items-center gap-2">
-                          <strong>{a.name}</strong>
-                          {a.isDefault ? (
-                            <span className="badge badge-outline badge-primary">
-                              Padrão
-                            </span>
-                          ) : null}
-                        </div>
-                      </div>
-                      {a.type === "credit_card" ? (
-                        <>
-                          <div className="mt-2 text-xs text-base-content/70">
-                            Fatura ({faturaMesLabel})
-                          </div>
-                          <div className="mt-1 text-[15px] font-bold text-warning">
-                            A pagar:{" "}
-                            {formatCents(
-                              creditCardPayableByAccountId[a.id] ?? 0,
-                            )}
-                          </div>
-                          <div className="mt-1 text-xs font-medium text-base-content/70">
-                            Saldo (contábil):{" "}
-                            {formatCents(balancesByAccountId[a.id] ?? 0)}
-                          </div>
-                          {payInvoice?.cardId === a.id ? (
-                            <form
-                              className="mt-3 grid grid-cols-1 gap-3 rounded-box border border-base-300 bg-base-100 p-3"
-                              onSubmit={onSubmitPayInvoice}
-                            >
-                              <Select
-                                label="Pagar de"
-                                value={payFromId}
-                                onChange={(e) => setPayFromId(e.target.value)}
-                              >
-                                {(accounts.filter(
-                                  (x) =>
-                                    x.id !== a.id && x.type !== "credit_card",
-                                ).length > 0
-                                  ? accounts.filter(
-                                      (x) =>
-                                        x.id !== a.id &&
-                                        x.type !== "credit_card",
-                                    )
-                                  : accounts.filter((x) => x.id !== a.id)
-                                ).map((x) => (
-                                  <option key={x.id} value={x.id}>
-                                    {x.name}
-                                  </option>
-                                ))}
-                              </Select>
-                              <Input
-                                ref={payInvoiceAmountRef}
-                                label="Valor (R$)"
-                                inputMode="decimal"
-                                value={payAmount}
-                                onChange={(e) =>
-                                  setPayAmount(e.target.value.replace(",", "."))
-                                }
-                              />
-                              <Input
-                                label="Data"
-                                type="date"
-                                value={payDate}
-                                onChange={(e) => setPayDate(e.target.value)}
-                              />
-                              <div className="flex justify-end gap-2">
-                                <button
-                                  type="button"
-                                  className="btn btn-ghost"
-                                  onClick={() => setPayInvoice(null)}
-                                >
-                                  <X className="size-4" aria-hidden />
-                                  <span>Voltar</span>
-                                </button>
-                                <button
-                                  type="submit"
-                                  disabled={
-                                    !canSubmitPayInvoice || submittingPayInvoice
-                                  }
-                                  className="btn btn-primary"
-                                >
-                                  {submittingPayInvoice ? (
-                                    <Loader2
-                                      className="size-4 animate-spin"
-                                      aria-hidden
-                                    />
-                                  ) : (
-                                    <Check className="size-4" aria-hidden />
-                                  )}
-                                  <span>
-                                    {submittingPayInvoice
-                                      ? "Registrando…"
-                                      : "Registrar"}
-                                  </span>
-                                </button>
-                              </div>
-                            </form>
-                          ) : (
-                            <button
-                              type="button"
-                              className="btn btn-ghost btn-sm mt-2"
-                              onClick={() => openPayInvoice(a.id)}
-                            >
-                              <CreditCard className="size-4" aria-hidden />
-                              <span>Pagar fatura</span>
-                            </button>
-                          )}
-                        </>
-                      ) : (
-                        <div
-                          className={`mt-2 text-sm font-bold ${(balancesByAccountId[a.id] ?? 0) >= 0 ? "text-success" : "text-error"}`}
-                        >
-                          Saldo: {formatCents(balancesByAccountId[a.id] ?? 0)}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex shrink-0 flex-col items-end gap-2">
-                      <span
-                        className="text-xs text-base-content/60"
-                        title={ACCOUNT_TYPE_LABEL[a.type]}
-                      >
-                        {ACCOUNT_TYPE_LABEL[a.type]}
-                      </span>
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-sm btn-square"
-                          onClick={() => onEditAccount(a)}
-                          aria-label={`Editar conta ${a.name}`}
-                          title="Editar"
-                        >
-                          <Pencil className="size-4" aria-hidden />
-                        </button>
-                        {!a.isDefault ? (
-                          <button
-                            type="button"
-                            className="btn btn-ghost btn-sm btn-square"
-                            onClick={() => void handleSetDefaultAccount(a.id)}
-                            aria-label="Definir como conta padrão"
-                            title="Conta padrão"
+            <div className="mt-4 space-y-6">
+              {accountGroups.map(({ id, title, items }) =>
+                items.length > 0 ? (
+                  <section key={id} aria-labelledby={id}>
+                    <h2
+                      id={id}
+                      className="m-0 text-lg font-semibold text-base-content"
+                    >
+                      {title}
+                    </h2>
+
+                    <ul className="mt-3 space-y-2">
+                      {items.map((a: Account) => {
+                        const Icon = ACCOUNT_ICON[a.type];
+                        const balance = balancesByAccountId[a.id] ?? 0;
+                        const invoice = creditCardPayableByAccountId[a.id] ?? 0;
+                        const detailsOpen =
+                          detailsAccountId === a.id ||
+                          payInvoice?.cardId === a.id;
+
+                        return (
+                          <li
+                            key={a.id}
+                            className="rounded-box border border-base-300 bg-base-100 p-3"
                           >
-                            <Star className="size-4" aria-hidden />
-                          </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          className="btn btn-outline btn-error btn-sm btn-square"
-                          disabled={accounts.length <= 1}
-                          onClick={() =>
-                            void requestArchiveAccount(a.id, a.name)
-                          }
-                          aria-label={`Arquivar conta ${a.name}`}
-                          title="Arquivar"
-                        >
-                          <Archive className="size-4" aria-hidden />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
+                            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                              <div className="flex min-w-0 items-start gap-3">
+                                <div className="flex size-11 shrink-0 items-center justify-center rounded-box bg-base-200 text-base-content/70">
+                                  <Icon className="size-5" aria-hidden />
+                                </div>
+
+                                <div className="min-w-0">
+                                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                                    <strong className="truncate text-base text-base-content">
+                                      {a.name}
+                                    </strong>
+                                    {a.isDefault ? (
+                                      <span className="badge badge-neutral badge-sm">
+                                        Principal
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                  <p className="m-0 mt-1 truncate text-sm text-base-content/70">
+                                    {ACCOUNT_TYPE_LABEL[a.type]}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex flex-col gap-3 md:flex-row md:items-center">
+                                <div className="text-left md:min-w-36 md:text-right">
+                                  <div className="text-xs text-base-content/60">
+                                    {a.type === "credit_card"
+                                      ? "Saldo Contábil"
+                                      : "Saldo Atual"}
+                                  </div>
+                                  <div
+                                    className={cn(
+                                      "text-xl font-semibold tabular-nums",
+                                      balance >= 0
+                                        ? "text-base-content"
+                                        : "text-error",
+                                    )}
+                                  >
+                                    {formatCents(balance)}
+                                  </div>
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <button
+                                    type="button"
+                                    className="btn btn-neutral btn-xs"
+                                    onClick={() =>
+                                      setDetailsAccountId(
+                                        detailsOpen ? null : a.id,
+                                      )
+                                    }
+                                  >
+                                    <Eye className="size-4" aria-hidden />
+                                    <span>Ver Detalhes</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    className="btn btn-outline btn-xs btn-square"
+                                    onClick={() => onEditAccount(a)}
+                                    aria-label={`Editar conta ${a.name}`}
+                                    title="Editar"
+                                  >
+                                    <Pencil className="size-4" aria-hidden />
+                                  </button>
+
+                                  {!a.isDefault ? (
+                                    <button
+                                      type="button"
+                                      className="btn btn-outline btn-xs btn-square"
+                                      onClick={() =>
+                                        void handleSetDefaultAccount(a.id)
+                                      }
+                                      aria-label="Definir como conta padrão"
+                                      title="Conta padrão"
+                                    >
+                                      <Star className="size-4" aria-hidden />
+                                    </button>
+                                  ) : null}
+
+                                  <button
+                                    type="button"
+                                    className="btn btn-outline btn-error btn-xs btn-square"
+                                    disabled={accounts.length <= 1}
+                                    onClick={() =>
+                                      void requestArchiveAccount(a.id, a.name)
+                                    }
+                                    aria-label={`Arquivar conta ${a.name}`}
+                                    title="Arquivar"
+                                  >
+                                    <Archive className="size-4" aria-hidden />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+
+                            {detailsOpen ? (
+                              <div className="mt-3 rounded-box border border-base-200 bg-base-200/40 p-3">
+                                <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+                                  <div>
+                                    <div className="text-xs text-base-content/60">
+                                      Tipo
+                                    </div>
+                                    <div className="font-medium">
+                                      {ACCOUNT_TYPE_LABEL[a.type]}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <div className="text-xs text-base-content/60">
+                                      Saldo contábil
+                                    </div>
+                                    <div className="font-medium">
+                                      {formatCents(balance)}
+                                    </div>
+                                  </div>
+
+                                  {a.type === "credit_card" ? (
+                                    <div className="sm:col-span-2">
+                                      <div className="text-xs text-base-content/60">
+                                        Fatura atual ({faturaMesLabel})
+                                      </div>
+                                      <div className="mt-1 font-bold text-warning">
+                                        A pagar: {formatCents(invoice)}
+                                      </div>
+                                    </div>
+                                  ) : null}
+                                </div>
+
+                                {a.type === "credit_card" ? (
+                                  payInvoice?.cardId === a.id ? (
+                                    <form
+                                      className="mt-3 grid grid-cols-1 gap-3 rounded-box border border-base-300 bg-base-100 p-3"
+                                      onSubmit={onSubmitPayInvoice}
+                                    >
+                                      <Select
+                                        label="Pagar de"
+                                        value={payFromId}
+                                        onChange={(e) =>
+                                          setPayFromId(e.target.value)
+                                        }
+                                      >
+                                        {(accounts.filter(
+                                          (x) =>
+                                            x.id !== a.id &&
+                                            x.type !== "credit_card",
+                                        ).length > 0
+                                          ? accounts.filter(
+                                              (x) =>
+                                                x.id !== a.id &&
+                                                x.type !== "credit_card",
+                                            )
+                                          : accounts.filter(
+                                              (x) => x.id !== a.id,
+                                            )
+                                        ).map((x) => (
+                                          <option key={x.id} value={x.id}>
+                                            {x.name}
+                                          </option>
+                                        ))}
+                                      </Select>
+                                      <Input
+                                        ref={payInvoiceAmountRef}
+                                        label="Valor (R$)"
+                                        inputMode="decimal"
+                                        value={payAmount}
+                                        onChange={(e) =>
+                                          setPayAmount(
+                                            e.target.value.replace(",", "."),
+                                          )
+                                        }
+                                      />
+                                      <Input
+                                        label="Data"
+                                        type="date"
+                                        value={payDate}
+                                        onChange={(e) =>
+                                          setPayDate(e.target.value)
+                                        }
+                                      />
+                                      <div className="flex justify-end gap-2">
+                                        <button
+                                          type="button"
+                                          className="btn btn-ghost"
+                                          onClick={() => setPayInvoice(null)}
+                                        >
+                                          <X className="size-4" aria-hidden />
+                                          <span>Voltar</span>
+                                        </button>
+                                        <button
+                                          type="submit"
+                                          disabled={
+                                            !canSubmitPayInvoice ||
+                                            submittingPayInvoice
+                                          }
+                                          className="btn btn-primary"
+                                        >
+                                          {submittingPayInvoice ? (
+                                            <Loader2
+                                              className="size-4 animate-spin"
+                                              aria-hidden
+                                            />
+                                          ) : (
+                                            <Check
+                                              className="size-4"
+                                              aria-hidden
+                                            />
+                                          )}
+                                          <span>
+                                            {submittingPayInvoice
+                                              ? "Registrando…"
+                                              : "Registrar"}
+                                          </span>
+                                        </button>
+                                      </div>
+                                    </form>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      className="btn btn-ghost btn-sm mt-3"
+                                      onClick={() => openPayInvoice(a.id)}
+                                    >
+                                      <CreditCard
+                                        className="size-4"
+                                        aria-hidden
+                                      />
+                                      <span>Pagar fatura</span>
+                                    </button>
+                                  )
+                                ) : null}
+                              </div>
+                            ) : null}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </section>
+                ) : null,
+              )}
+            </div>
           )}
 
           {archivedAccounts.length > 0 ? (
@@ -418,9 +534,7 @@ export function AccountsCard({
                         <div className="flex flex-wrap items-center gap-2">
                           <strong>{a.name}</strong>
                           {a.isDefault ? (
-                            <span className="badge badge-outline badge-primary">
-                              Padrão
-                            </span>
+                            <span className="badge badge-neutral">Padrão</span>
                           ) : null}
                         </div>
                         {a.type === "credit_card" ? (
@@ -485,8 +599,7 @@ export function AccountsCard({
               </ul>
             </details>
           ) : null}
-        </div>
-      </div>
+      </section>
 
       <ConfirmDialog
         open={archiveConfirm !== null}

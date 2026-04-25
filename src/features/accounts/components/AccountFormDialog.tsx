@@ -258,7 +258,7 @@ export function AccountFormDialog({
           </label>
         )}
 
-        <div className="modal-action col-span-full flex justify-end gap-2 min-[640px]:col-span-2">
+        <div className="modal-action col-span-full flex flex-col-reverse gap-2 min-[640px]:col-span-2 min-[640px]:flex-row min-[640px]:justify-end">
           <button type="button" className="btn btn-ghost" onClick={onClose}>
             <X className="size-4" aria-hidden />
             <span>Voltar</span>
