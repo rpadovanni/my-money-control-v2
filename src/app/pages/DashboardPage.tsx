@@ -73,7 +73,7 @@ const LAYOUT_PAGE: Record<DashboardView, { title: string; subtitle?: string }> =
     },
     accounts: {
       title: "Contas e Cartões",
-      subtitle: "Gerencie suas contas bancárias e cartões de créditoh",
+      subtitle: "Gerencie suas contas bancárias e cartões de crédito",
     },
     categories: {
       title: "Categorias",

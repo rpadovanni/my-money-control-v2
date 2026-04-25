@@ -133,11 +133,12 @@ export function AccountsCard({
     const suggested = creditCardPayableByAccountId[cardId] ?? 0;
     setPayAmount(suggested > 0 ? String(suggested / 100) : "");
     setPayDate(todayISODate());
+    const eligible = accounts.filter(
+      (a) => a.id !== cardId && a.type !== "credit_card",
+    );
     const from =
-      accounts.find(
-        (a) => a.isDefault && a.id !== cardId && a.type !== "credit_card",
-      )?.id ??
-      accounts.find((a) => a.id !== cardId && a.type !== "credit_card")?.id ??
+      eligible.find((a) => a.isDefault)?.id ??
+      eligible[0]?.id ??
       defaultAccountId;
     setPayFromId(from);
   }
